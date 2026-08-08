@@ -1,0 +1,9 @@
+[
+  {"request_id": "alt-1", "package": "webapp", "source": "app", "channel": "stable", "constraint": "==2.2.0", "note": "exact webapp pin"},
+  {"request_id": "alt-2", "package": "authlib", "source": "app", "channel": "stable", "constraint": ">=1.5.0", "note": "newer auth floor"},
+  {"request_id": "alt-3", "package": "legacypin", "source": "ops", "channel": "stable", "constraint": "*", "note": "legacy component"},
+  {"request_id": "alt-4", "package": "httpclient", "source": "ci", "channel": "canary", "constraint": "~=1.2", "note": "compatible release band"},
+  {"request_id": "alt-5", "package": "cryptobox", "source": "ci", "channel": "canary", "constraint": ">=1.0.0,<1.1.0", "note": "bounded crypto range"},
+  {"request_id": "alt-6", "package": "corelib", "source": "ci", "channel": "canary", "constraint": "*", "note": "shared core"},
+  {"request_id": "alt-7", "package": "topsvc", "source": "ci", "channel": "canary", "constraint": "*", "note": "top service tightens core"}
+]

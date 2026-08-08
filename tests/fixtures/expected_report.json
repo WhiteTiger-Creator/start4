@@ -1,0 +1,1633 @@
+{
+  "shipped_truncated_index": {
+    "webapp": [
+      {
+        "version": "2.1.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "httpclient",
+            "constraint": ">=1.0.0"
+          },
+          {
+            "package": "jsonlib",
+            "constraint": ">=3.0.0"
+          }
+        ]
+      },
+      {
+        "version": "2.2.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "httpclient",
+            "constraint": ">=1.1.0"
+          },
+          {
+            "package": "jsonlib",
+            "constraint": ">=3.0.0"
+          }
+        ]
+      },
+      {
+        "version": "2.3.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "httpclient",
+            "constraint": ">=1.2.0"
+          },
+          {
+            "package": "jsonlib",
+            "constraint": ">=3.1.0"
+          }
+        ]
+      }
+    ],
+    "httpclient": [
+      {
+        "version": "1.0.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "utils",
+            "constraint": ">=0.1.0"
+          }
+        ]
+      },
+      {
+        "version": "1.1.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "utils",
+            "constraint": ">=0.1.0"
+          }
+        ]
+      },
+      {
+        "version": "1.2.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "utils",
+            "constraint": ">=0.2.0"
+          }
+        ]
+      },
+      {
+        "version": "1.2.1",
+        "yanked": true,
+        "deps": [
+          {
+            "package": "utils",
+            "constraint": ">=0.2.0"
+          }
+        ]
+      },
+      {
+        "version": "1.3.0-rc1",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "utils",
+            "constraint": ">=0.2.0"
+          }
+        ]
+      },
+      {
+        "version": "1.3.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "utils",
+            "constraint": ">=0.2.0"
+          }
+        ]
+      }
+    ],
+    "jsonlib": [
+      {
+        "version": "3.0.0",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "3.1.0",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "3.2.0",
+        "yanked": false,
+        "deps": []
+      }
+    ],
+    "utils": [
+      {
+        "version": "0.1.0",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "0.2.0",
+        "yanked": false,
+        "deps": []
+      }
+    ],
+    "authlib": [
+      {
+        "version": "1.4.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "cryptobox",
+            "constraint": ">=1.0.0"
+          }
+        ]
+      },
+      {
+        "version": "1.5.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "cryptobox",
+            "constraint": ">=1.0.0"
+          }
+        ]
+      }
+    ]
+  },
+  "snapshot": {
+    "webapp": [
+      {
+        "version": "2.1.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "httpclient",
+            "constraint": ">=1.0.0"
+          },
+          {
+            "package": "jsonlib",
+            "constraint": ">=3.0.0"
+          }
+        ]
+      },
+      {
+        "version": "2.2.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "httpclient",
+            "constraint": ">=1.1.0"
+          },
+          {
+            "package": "jsonlib",
+            "constraint": ">=3.0.0"
+          }
+        ]
+      },
+      {
+        "version": "2.3.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "httpclient",
+            "constraint": ">=1.2.0"
+          },
+          {
+            "package": "jsonlib",
+            "constraint": ">=3.1.0"
+          }
+        ]
+      }
+    ],
+    "httpclient": [
+      {
+        "version": "1.0.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "utils",
+            "constraint": ">=0.1.0"
+          }
+        ]
+      },
+      {
+        "version": "1.1.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "utils",
+            "constraint": ">=0.1.0"
+          }
+        ]
+      },
+      {
+        "version": "1.2.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "utils",
+            "constraint": ">=0.2.0"
+          }
+        ]
+      },
+      {
+        "version": "1.2.1",
+        "yanked": true,
+        "deps": [
+          {
+            "package": "utils",
+            "constraint": ">=0.2.0"
+          }
+        ]
+      },
+      {
+        "version": "1.3.0-rc1",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "utils",
+            "constraint": ">=0.2.0"
+          }
+        ]
+      }
+    ],
+    "jsonlib": [
+      {
+        "version": "3.0.0",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "3.1.0",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "3.2.0",
+        "yanked": false,
+        "deps": []
+      }
+    ],
+    "utils": [
+      {
+        "version": "0.1.0",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "0.2.0",
+        "yanked": false,
+        "deps": []
+      }
+    ],
+    "authlib": [
+      {
+        "version": "1.4.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "cryptobox",
+            "constraint": ">=1.0.0"
+          }
+        ]
+      },
+      {
+        "version": "1.5.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "cryptobox",
+            "constraint": ">=1.0.0"
+          }
+        ]
+      }
+    ],
+    "cryptobox": [
+      {
+        "version": "0.9.0",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "1.0.0",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "1.0.0+build3",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "1.0.0+build7",
+        "yanked": true,
+        "deps": []
+      },
+      {
+        "version": "1.1.0",
+        "yanked": true,
+        "deps": []
+      }
+    ],
+    "reporting": [
+      {
+        "version": "5.0.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "pdfkit",
+            "constraint": ">=2.0.0"
+          }
+        ]
+      }
+    ],
+    "pdfkit": [
+      {
+        "version": "2.0.0",
+        "yanked": true,
+        "deps": []
+      },
+      {
+        "version": "2.0.5",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "2.1.0",
+        "yanked": true,
+        "deps": []
+      }
+    ],
+    "hotfix": [
+      {
+        "version": "1.0.0",
+        "yanked": true,
+        "deps": []
+      }
+    ],
+    "legacypin": [
+      {
+        "version": "0.5.0",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "0.6.0",
+        "yanked": false,
+        "deps": []
+      }
+    ],
+    "alpha-svc": [
+      {
+        "version": "1.0.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "beta-svc",
+            "constraint": ">=1.0.0"
+          }
+        ]
+      }
+    ],
+    "beta-svc": [
+      {
+        "version": "1.0.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "alpha-svc",
+            "constraint": ">=1.0.0"
+          }
+        ]
+      }
+    ],
+    "corelib": [
+      {
+        "version": "1.0.0",
+        "yanked": false,
+        "deps": []
+      }
+    ],
+    "topsvc": [
+      {
+        "version": "1.0.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "corelib",
+            "constraint": ">=2.0.0"
+          }
+        ]
+      }
+    ],
+    "data-store": [
+      {
+        "version": "1.0.0",
+        "yanked": false,
+        "deps": []
+      }
+    ]
+  },
+  "journal": [
+    {
+      "journal_seq": 1,
+      "journal_op": "append",
+      "package": "cryptobox",
+      "version": "1.0.0+build7",
+      "yanked": false,
+      "deps": []
+    },
+    {
+      "journal_seq": 2,
+      "journal_op": "append",
+      "package": "httpclient",
+      "version": "1.3.0",
+      "yanked": false,
+      "deps": [
+        {
+          "package": "utils",
+          "constraint": ">=0.2.0"
+        }
+      ]
+    },
+    {
+      "journal_seq": 3,
+      "journal_op": "retract",
+      "package": "pdfkit",
+      "version": "2.0.5",
+      "reason": "build withdrawn by the publisher before general availability"
+    },
+    {
+      "journal_seq": 4,
+      "journal_op": "append",
+      "package": "data-store",
+      "version": "1.1.0",
+      "yanked": false,
+      "deps": []
+    },
+    {
+      "journal_seq": 5,
+      "journal_op": "append",
+      "package": "corelib",
+      "version": "2.0.0",
+      "yanked": false,
+      "deps": []
+    }
+  ],
+  "recovered_index": {
+    "webapp": [
+      {
+        "version": "2.1.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "httpclient",
+            "constraint": ">=1.0.0"
+          },
+          {
+            "package": "jsonlib",
+            "constraint": ">=3.0.0"
+          }
+        ]
+      },
+      {
+        "version": "2.2.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "httpclient",
+            "constraint": ">=1.1.0"
+          },
+          {
+            "package": "jsonlib",
+            "constraint": ">=3.0.0"
+          }
+        ]
+      },
+      {
+        "version": "2.3.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "httpclient",
+            "constraint": ">=1.2.0"
+          },
+          {
+            "package": "jsonlib",
+            "constraint": ">=3.1.0"
+          }
+        ]
+      }
+    ],
+    "httpclient": [
+      {
+        "version": "1.0.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "utils",
+            "constraint": ">=0.1.0"
+          }
+        ]
+      },
+      {
+        "version": "1.1.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "utils",
+            "constraint": ">=0.1.0"
+          }
+        ]
+      },
+      {
+        "version": "1.2.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "utils",
+            "constraint": ">=0.2.0"
+          }
+        ]
+      },
+      {
+        "version": "1.2.1",
+        "yanked": true,
+        "deps": [
+          {
+            "package": "utils",
+            "constraint": ">=0.2.0"
+          }
+        ]
+      },
+      {
+        "version": "1.3.0-rc1",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "utils",
+            "constraint": ">=0.2.0"
+          }
+        ]
+      },
+      {
+        "version": "1.3.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "utils",
+            "constraint": ">=0.2.0"
+          }
+        ]
+      }
+    ],
+    "jsonlib": [
+      {
+        "version": "3.0.0",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "3.1.0",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "3.2.0",
+        "yanked": false,
+        "deps": []
+      }
+    ],
+    "utils": [
+      {
+        "version": "0.1.0",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "0.2.0",
+        "yanked": false,
+        "deps": []
+      }
+    ],
+    "authlib": [
+      {
+        "version": "1.4.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "cryptobox",
+            "constraint": ">=1.0.0"
+          }
+        ]
+      },
+      {
+        "version": "1.5.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "cryptobox",
+            "constraint": ">=1.0.0"
+          }
+        ]
+      }
+    ],
+    "cryptobox": [
+      {
+        "version": "0.9.0",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "1.0.0",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "1.0.0+build3",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "1.0.0+build7",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "1.1.0",
+        "yanked": true,
+        "deps": []
+      }
+    ],
+    "reporting": [
+      {
+        "version": "5.0.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "pdfkit",
+            "constraint": ">=2.0.0"
+          }
+        ]
+      }
+    ],
+    "pdfkit": [
+      {
+        "version": "2.0.0",
+        "yanked": true,
+        "deps": []
+      },
+      {
+        "version": "2.1.0",
+        "yanked": true,
+        "deps": []
+      }
+    ],
+    "hotfix": [
+      {
+        "version": "1.0.0",
+        "yanked": true,
+        "deps": []
+      }
+    ],
+    "legacypin": [
+      {
+        "version": "0.5.0",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "0.6.0",
+        "yanked": false,
+        "deps": []
+      }
+    ],
+    "alpha-svc": [
+      {
+        "version": "1.0.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "beta-svc",
+            "constraint": ">=1.0.0"
+          }
+        ]
+      }
+    ],
+    "beta-svc": [
+      {
+        "version": "1.0.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "alpha-svc",
+            "constraint": ">=1.0.0"
+          }
+        ]
+      }
+    ],
+    "corelib": [
+      {
+        "version": "1.0.0",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "2.0.0",
+        "yanked": false,
+        "deps": []
+      }
+    ],
+    "topsvc": [
+      {
+        "version": "1.0.0",
+        "yanked": false,
+        "deps": [
+          {
+            "package": "corelib",
+            "constraint": ">=2.0.0"
+          }
+        ]
+      }
+    ],
+    "data-store": [
+      {
+        "version": "1.0.0",
+        "yanked": false,
+        "deps": []
+      },
+      {
+        "version": "1.1.0",
+        "yanked": false,
+        "deps": []
+      }
+    ]
+  },
+  "broken_pipeline_sha256": "5e91c1e2b35d4a6fafa31f20105cc5ab685b65b8cf3b15c01a8e9402ee75d5ab",
+  "primary": {
+    "summary": {
+      "schema_version": "reg-resolve-v1",
+      "raw_request_count": 12,
+      "unique_request_ids": 12,
+      "canonical_request_count": 11,
+      "resolved_package_count": 18,
+      "channel_count": 2,
+      "status_counts": {
+        "resolved": 16,
+        "pinned": 1,
+        "conflict": 1
+      },
+      "conflict_count": 1,
+      "cyclic_package_count": 1,
+      "cyclic_packages": [
+        "stable/alpha-svc"
+      ],
+      "total_reselects": 1,
+      "total_alternatives_considered": 16,
+      "total_conflict_weight": 5,
+      "planned_install_count": 6,
+      "max_reselect_count": 1,
+      "max_dep_count": 0,
+      "max_alternatives_count": 2
+    },
+    "resolution": {
+      "alpha-svc": [
+        {
+          "channel": "stable",
+          "chosen_version": "1.0.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [
+            "beta-svc"
+          ],
+          "dep_count": 1,
+          "satisfied_constraints": [
+            "*",
+            ">=1.0.0"
+          ],
+          "alternatives_considered": [],
+          "alternatives_count": 0,
+          "reason": "default-selection"
+        }
+      ],
+      "authlib": [
+        {
+          "channel": "stable",
+          "chosen_version": "1.4.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [
+            "cryptobox"
+          ],
+          "dep_count": 1,
+          "satisfied_constraints": [
+            ">=1.4.0"
+          ],
+          "alternatives_considered": [
+            "1.5.0"
+          ],
+          "alternatives_count": 1,
+          "reason": "default-selection"
+        }
+      ],
+      "beta-svc": [
+        {
+          "channel": "stable",
+          "chosen_version": "1.0.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [
+            "alpha-svc"
+          ],
+          "dep_count": 1,
+          "satisfied_constraints": [
+            ">=1.0.0"
+          ],
+          "alternatives_considered": [],
+          "alternatives_count": 0,
+          "reason": "default-selection"
+        }
+      ],
+      "corelib": [
+        {
+          "channel": "canary",
+          "chosen_version": "2.0.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 1,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [],
+          "dep_count": 0,
+          "satisfied_constraints": [
+            "*",
+            ">=2.0.0"
+          ],
+          "alternatives_considered": [],
+          "alternatives_count": 0,
+          "reason": "default-selection"
+        }
+      ],
+      "cryptobox": [
+        {
+          "channel": "canary",
+          "chosen_version": "1.0.0+build7",
+          "status": "resolved",
+          "provenance": "override-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [],
+          "dep_count": 0,
+          "satisfied_constraints": [
+            ">=1.0.0"
+          ],
+          "alternatives_considered": [
+            "1.0.0",
+            "1.0.0+build3"
+          ],
+          "alternatives_count": 2,
+          "reason": "override-selection"
+        },
+        {
+          "channel": "stable",
+          "chosen_version": "1.0.0+build7",
+          "status": "resolved",
+          "provenance": "override-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [],
+          "dep_count": 0,
+          "satisfied_constraints": [
+            ">=1.0.0"
+          ],
+          "alternatives_considered": [
+            "1.0.0",
+            "1.0.0+build3"
+          ],
+          "alternatives_count": 2,
+          "reason": "override-selection"
+        }
+      ],
+      "data-store": [
+        {
+          "channel": "canary",
+          "chosen_version": "1.0.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [],
+          "dep_count": 0,
+          "satisfied_constraints": [
+            "*"
+          ],
+          "alternatives_considered": [
+            "1.1.0"
+          ],
+          "alternatives_count": 1,
+          "reason": "default-selection"
+        }
+      ],
+      "hotfix": [
+        {
+          "channel": "stable",
+          "chosen_version": "1.0.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": true,
+          "dep_edges": [],
+          "dep_count": 0,
+          "satisfied_constraints": [
+            "*"
+          ],
+          "alternatives_considered": [],
+          "alternatives_count": 0,
+          "reason": "yanked-admitted;default-selection"
+        }
+      ],
+      "httpclient": [
+        {
+          "channel": "canary",
+          "chosen_version": "1.3.0-rc1",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": true,
+          "used_yanked": false,
+          "dep_edges": [
+            "utils"
+          ],
+          "dep_count": 1,
+          "satisfied_constraints": [
+            ">=1.3.0-rc1"
+          ],
+          "alternatives_considered": [
+            "1.3.0"
+          ],
+          "alternatives_count": 1,
+          "reason": "default-selection"
+        },
+        {
+          "channel": "stable",
+          "chosen_version": "1.0.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [
+            "utils"
+          ],
+          "dep_count": 1,
+          "satisfied_constraints": [
+            ">=1.0.0"
+          ],
+          "alternatives_considered": [
+            "1.1.0",
+            "1.2.0",
+            "1.3.0"
+          ],
+          "alternatives_count": 3,
+          "reason": "default-selection"
+        }
+      ],
+      "jsonlib": [
+        {
+          "channel": "stable",
+          "chosen_version": "3.0.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [],
+          "dep_count": 0,
+          "satisfied_constraints": [
+            ">=3.0.0"
+          ],
+          "alternatives_considered": [
+            "3.1.0",
+            "3.2.0"
+          ],
+          "alternatives_count": 2,
+          "reason": "default-selection"
+        }
+      ],
+      "legacypin": [
+        {
+          "channel": "stable",
+          "chosen_version": "0.6.0",
+          "status": "pinned",
+          "provenance": "pin-override",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [],
+          "dep_count": 0,
+          "satisfied_constraints": [
+            "*"
+          ],
+          "alternatives_considered": [
+            "0.5.0"
+          ],
+          "alternatives_count": 1,
+          "reason": "pin-override"
+        }
+      ],
+      "pdfkit": [
+        {
+          "channel": "stable",
+          "chosen_version": null,
+          "status": "conflict",
+          "provenance": "unsatisfiable",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [],
+          "dep_count": 0,
+          "satisfied_constraints": [
+            ">=2.0.0"
+          ],
+          "alternatives_considered": [],
+          "alternatives_count": 0,
+          "reason": "unsatisfiable"
+        }
+      ],
+      "reporting": [
+        {
+          "channel": "stable",
+          "chosen_version": "5.0.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [
+            "pdfkit"
+          ],
+          "dep_count": 1,
+          "satisfied_constraints": [
+            "*"
+          ],
+          "alternatives_considered": [],
+          "alternatives_count": 0,
+          "reason": "default-selection"
+        }
+      ],
+      "topsvc": [
+        {
+          "channel": "canary",
+          "chosen_version": "1.0.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [
+            "corelib"
+          ],
+          "dep_count": 1,
+          "satisfied_constraints": [
+            "*"
+          ],
+          "alternatives_considered": [],
+          "alternatives_count": 0,
+          "reason": "default-selection"
+        }
+      ],
+      "utils": [
+        {
+          "channel": "canary",
+          "chosen_version": "0.2.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [],
+          "dep_count": 0,
+          "satisfied_constraints": [
+            ">=0.2.0"
+          ],
+          "alternatives_considered": [],
+          "alternatives_count": 0,
+          "reason": "default-selection"
+        },
+        {
+          "channel": "stable",
+          "chosen_version": "0.1.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [],
+          "dep_count": 0,
+          "satisfied_constraints": [
+            ">=0.1.0"
+          ],
+          "alternatives_considered": [
+            "0.2.0"
+          ],
+          "alternatives_count": 1,
+          "reason": "default-selection"
+        }
+      ],
+      "webapp": [
+        {
+          "channel": "stable",
+          "chosen_version": "2.1.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [
+            "httpclient",
+            "jsonlib"
+          ],
+          "dep_count": 2,
+          "satisfied_constraints": [
+            ">=2.1.0"
+          ],
+          "alternatives_considered": [
+            "2.2.0",
+            "2.3.0"
+          ],
+          "alternatives_count": 2,
+          "reason": "default-selection"
+        }
+      ]
+    },
+    "plan_rows": [
+      {
+        "order_index": 0,
+        "channel": "canary",
+        "package": "corelib",
+        "version": "2.0.0",
+        "status": "resolved",
+        "provenance": "default-selection",
+        "cyclic": false,
+        "dep_count": 0,
+        "dep_edges": [],
+        "reselect_count": 1,
+        "alternatives_count": 0,
+        "reason": "default-selection"
+      },
+      {
+        "order_index": 1,
+        "channel": "canary",
+        "package": "cryptobox",
+        "version": "1.0.0+build7",
+        "status": "resolved",
+        "provenance": "override-selection",
+        "cyclic": false,
+        "dep_count": 0,
+        "dep_edges": [],
+        "reselect_count": 0,
+        "alternatives_count": 2,
+        "reason": "override-selection"
+      },
+      {
+        "order_index": 2,
+        "channel": "canary",
+        "package": "data-store",
+        "version": "1.0.0",
+        "status": "resolved",
+        "provenance": "default-selection",
+        "cyclic": false,
+        "dep_count": 0,
+        "dep_edges": [],
+        "reselect_count": 0,
+        "alternatives_count": 1,
+        "reason": "default-selection"
+      },
+      {
+        "order_index": 3,
+        "channel": "stable",
+        "package": "cryptobox",
+        "version": "1.0.0+build7",
+        "status": "resolved",
+        "provenance": "override-selection",
+        "cyclic": false,
+        "dep_count": 0,
+        "dep_edges": [],
+        "reselect_count": 0,
+        "alternatives_count": 2,
+        "reason": "override-selection"
+      },
+      {
+        "order_index": 4,
+        "channel": "stable",
+        "package": "hotfix",
+        "version": "1.0.0",
+        "status": "resolved",
+        "provenance": "default-selection",
+        "cyclic": false,
+        "dep_count": 0,
+        "dep_edges": [],
+        "reselect_count": 0,
+        "alternatives_count": 0,
+        "reason": "yanked-admitted;default-selection"
+      },
+      {
+        "order_index": 5,
+        "channel": "stable",
+        "package": "jsonlib",
+        "version": "3.0.0",
+        "status": "resolved",
+        "provenance": "default-selection",
+        "cyclic": false,
+        "dep_count": 0,
+        "dep_edges": [],
+        "reselect_count": 0,
+        "alternatives_count": 2,
+        "reason": "default-selection"
+      }
+    ]
+  },
+  "alternate": {
+    "summary": {
+      "schema_version": "reg-resolve-v1",
+      "raw_request_count": 7,
+      "unique_request_ids": 7,
+      "canonical_request_count": 7,
+      "resolved_package_count": 12,
+      "channel_count": 2,
+      "status_counts": {
+        "resolved": 11,
+        "pinned": 1,
+        "conflict": 0
+      },
+      "conflict_count": 0,
+      "cyclic_package_count": 0,
+      "cyclic_packages": [],
+      "total_reselects": 1,
+      "total_alternatives_considered": 12,
+      "total_conflict_weight": 0,
+      "planned_install_count": 6,
+      "max_reselect_count": 1,
+      "max_dep_count": 0,
+      "max_alternatives_count": 2
+    },
+    "resolution": {
+      "authlib": [
+        {
+          "channel": "stable",
+          "chosen_version": "1.5.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [
+            "cryptobox"
+          ],
+          "dep_count": 1,
+          "satisfied_constraints": [
+            ">=1.5.0"
+          ],
+          "alternatives_considered": [],
+          "alternatives_count": 0,
+          "reason": "default-selection"
+        }
+      ],
+      "corelib": [
+        {
+          "channel": "canary",
+          "chosen_version": "2.0.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 1,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [],
+          "dep_count": 0,
+          "satisfied_constraints": [
+            "*",
+            ">=2.0.0"
+          ],
+          "alternatives_considered": [],
+          "alternatives_count": 0,
+          "reason": "default-selection"
+        }
+      ],
+      "cryptobox": [
+        {
+          "channel": "canary",
+          "chosen_version": "1.0.0+build7",
+          "status": "resolved",
+          "provenance": "override-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [],
+          "dep_count": 0,
+          "satisfied_constraints": [
+            ">=1.0.0,<1.1.0"
+          ],
+          "alternatives_considered": [
+            "1.0.0",
+            "1.0.0+build3"
+          ],
+          "alternatives_count": 2,
+          "reason": "override-selection"
+        },
+        {
+          "channel": "stable",
+          "chosen_version": "1.0.0+build7",
+          "status": "resolved",
+          "provenance": "override-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [],
+          "dep_count": 0,
+          "satisfied_constraints": [
+            ">=1.0.0"
+          ],
+          "alternatives_considered": [
+            "1.0.0",
+            "1.0.0+build3"
+          ],
+          "alternatives_count": 2,
+          "reason": "override-selection"
+        }
+      ],
+      "httpclient": [
+        {
+          "channel": "canary",
+          "chosen_version": "1.2.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [
+            "utils"
+          ],
+          "dep_count": 1,
+          "satisfied_constraints": [
+            "~=1.2"
+          ],
+          "alternatives_considered": [
+            "1.3.0-rc1",
+            "1.3.0"
+          ],
+          "alternatives_count": 2,
+          "reason": "default-selection"
+        },
+        {
+          "channel": "stable",
+          "chosen_version": "1.1.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [
+            "utils"
+          ],
+          "dep_count": 1,
+          "satisfied_constraints": [
+            ">=1.1.0"
+          ],
+          "alternatives_considered": [
+            "1.2.0",
+            "1.3.0"
+          ],
+          "alternatives_count": 2,
+          "reason": "default-selection"
+        }
+      ],
+      "jsonlib": [
+        {
+          "channel": "stable",
+          "chosen_version": "3.0.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [],
+          "dep_count": 0,
+          "satisfied_constraints": [
+            ">=3.0.0"
+          ],
+          "alternatives_considered": [
+            "3.1.0",
+            "3.2.0"
+          ],
+          "alternatives_count": 2,
+          "reason": "default-selection"
+        }
+      ],
+      "legacypin": [
+        {
+          "channel": "stable",
+          "chosen_version": "0.6.0",
+          "status": "pinned",
+          "provenance": "pin-override",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [],
+          "dep_count": 0,
+          "satisfied_constraints": [
+            "*"
+          ],
+          "alternatives_considered": [
+            "0.5.0"
+          ],
+          "alternatives_count": 1,
+          "reason": "pin-override"
+        }
+      ],
+      "topsvc": [
+        {
+          "channel": "canary",
+          "chosen_version": "1.0.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [
+            "corelib"
+          ],
+          "dep_count": 1,
+          "satisfied_constraints": [
+            "*"
+          ],
+          "alternatives_considered": [],
+          "alternatives_count": 0,
+          "reason": "default-selection"
+        }
+      ],
+      "utils": [
+        {
+          "channel": "canary",
+          "chosen_version": "0.2.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [],
+          "dep_count": 0,
+          "satisfied_constraints": [
+            ">=0.2.0"
+          ],
+          "alternatives_considered": [],
+          "alternatives_count": 0,
+          "reason": "default-selection"
+        },
+        {
+          "channel": "stable",
+          "chosen_version": "0.1.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [],
+          "dep_count": 0,
+          "satisfied_constraints": [
+            ">=0.1.0"
+          ],
+          "alternatives_considered": [
+            "0.2.0"
+          ],
+          "alternatives_count": 1,
+          "reason": "default-selection"
+        }
+      ],
+      "webapp": [
+        {
+          "channel": "stable",
+          "chosen_version": "2.2.0",
+          "status": "resolved",
+          "provenance": "default-selection",
+          "reselect_count": 0,
+          "is_prerelease": false,
+          "used_yanked": false,
+          "dep_edges": [
+            "httpclient",
+            "jsonlib"
+          ],
+          "dep_count": 2,
+          "satisfied_constraints": [
+            "==2.2.0"
+          ],
+          "alternatives_considered": [],
+          "alternatives_count": 0,
+          "reason": "default-selection"
+        }
+      ]
+    },
+    "plan_rows": [
+      {
+        "order_index": 0,
+        "channel": "canary",
+        "package": "corelib",
+        "version": "2.0.0",
+        "status": "resolved",
+        "provenance": "default-selection",
+        "cyclic": false,
+        "dep_count": 0,
+        "dep_edges": [],
+        "reselect_count": 1,
+        "alternatives_count": 0,
+        "reason": "default-selection"
+      },
+      {
+        "order_index": 1,
+        "channel": "canary",
+        "package": "cryptobox",
+        "version": "1.0.0+build7",
+        "status": "resolved",
+        "provenance": "override-selection",
+        "cyclic": false,
+        "dep_count": 0,
+        "dep_edges": [],
+        "reselect_count": 0,
+        "alternatives_count": 2,
+        "reason": "override-selection"
+      },
+      {
+        "order_index": 2,
+        "channel": "canary",
+        "package": "utils",
+        "version": "0.2.0",
+        "status": "resolved",
+        "provenance": "default-selection",
+        "cyclic": false,
+        "dep_count": 0,
+        "dep_edges": [],
+        "reselect_count": 0,
+        "alternatives_count": 0,
+        "reason": "default-selection"
+      },
+      {
+        "order_index": 3,
+        "channel": "stable",
+        "package": "cryptobox",
+        "version": "1.0.0+build7",
+        "status": "resolved",
+        "provenance": "override-selection",
+        "cyclic": false,
+        "dep_count": 0,
+        "dep_edges": [],
+        "reselect_count": 0,
+        "alternatives_count": 2,
+        "reason": "override-selection"
+      },
+      {
+        "order_index": 4,
+        "channel": "stable",
+        "package": "jsonlib",
+        "version": "3.0.0",
+        "status": "resolved",
+        "provenance": "default-selection",
+        "cyclic": false,
+        "dep_count": 0,
+        "dep_edges": [],
+        "reselect_count": 0,
+        "alternatives_count": 2,
+        "reason": "default-selection"
+      },
+      {
+        "order_index": 5,
+        "channel": "stable",
+        "package": "legacypin",
+        "version": "0.6.0",
+        "status": "pinned",
+        "provenance": "pin-override",
+        "cyclic": false,
+        "dep_count": 0,
+        "dep_edges": [],
+        "reselect_count": 0,
+        "alternatives_count": 1,
+        "reason": "pin-override"
+      }
+    ]
+  }
+}

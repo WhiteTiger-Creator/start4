@@ -1,0 +1,37 @@
+{
+  "default": {
+    "reselect_cap": 2,
+    "prerelease_rank_floor": 3,
+    "plan_capacity_cap": 3,
+    "conflict_weight": 5
+  },
+  "package_overrides": {
+    "corelib": {
+      "reselect_cap": 1
+    },
+    "cryptobox": {
+      "alt_report_cap": 2
+    }
+  },
+  "pins": {
+    "stable": {
+      "legacypin": "0.6.0"
+    }
+  },
+  "yanked_exemptions": [
+    "hotfix"
+  ],
+  "selection_overrides": [
+    "cryptobox"
+  ],
+  "channel_priorities": {
+    "canary": {
+      "allow_prerelease": true,
+      "priority": 2
+    },
+    "stable": {
+      "allow_prerelease": false,
+      "priority": 1
+    }
+  }
+}

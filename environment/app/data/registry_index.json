@@ -1,0 +1,159 @@
+{
+  "webapp": [
+    {
+      "version": "2.1.0",
+      "yanked": false,
+      "deps": [
+        {
+          "package": "httpclient",
+          "constraint": ">=1.0.0"
+        },
+        {
+          "package": "jsonlib",
+          "constraint": ">=3.0.0"
+        }
+      ]
+    },
+    {
+      "version": "2.2.0",
+      "yanked": false,
+      "deps": [
+        {
+          "package": "httpclient",
+          "constraint": ">=1.1.0"
+        },
+        {
+          "package": "jsonlib",
+          "constraint": ">=3.0.0"
+        }
+      ]
+    },
+    {
+      "version": "2.3.0",
+      "yanked": false,
+      "deps": [
+        {
+          "package": "httpclient",
+          "constraint": ">=1.2.0"
+        },
+        {
+          "package": "jsonlib",
+          "constraint": ">=3.1.0"
+        }
+      ]
+    }
+  ],
+  "httpclient": [
+    {
+      "version": "1.0.0",
+      "yanked": false,
+      "deps": [
+        {
+          "package": "utils",
+          "constraint": ">=0.1.0"
+        }
+      ]
+    },
+    {
+      "version": "1.1.0",
+      "yanked": false,
+      "deps": [
+        {
+          "package": "utils",
+          "constraint": ">=0.1.0"
+        }
+      ]
+    },
+    {
+      "version": "1.2.0",
+      "yanked": false,
+      "deps": [
+        {
+          "package": "utils",
+          "constraint": ">=0.2.0"
+        }
+      ]
+    },
+    {
+      "version": "1.2.1",
+      "yanked": true,
+      "deps": [
+        {
+          "package": "utils",
+          "constraint": ">=0.2.0"
+        }
+      ]
+    },
+    {
+      "version": "1.3.0-rc1",
+      "yanked": false,
+      "deps": [
+        {
+          "package": "utils",
+          "constraint": ">=0.2.0"
+        }
+      ]
+    },
+    {
+      "version": "1.3.0",
+      "yanked": false,
+      "deps": [
+        {
+          "package": "utils",
+          "constraint": ">=0.2.0"
+        }
+      ]
+    }
+  ],
+  "jsonlib": [
+    {
+      "version": "3.0.0",
+      "yanked": false,
+      "deps": []
+    },
+    {
+      "version": "3.1.0",
+      "yanked": false,
+      "deps": []
+    },
+    {
+      "version": "3.2.0",
+      "yanked": false,
+      "deps": []
+    }
+  ],
+  "utils": [
+    {
+      "version": "0.1.0",
+      "yanked": false,
+      "deps": []
+    },
+    {
+      "version": "0.2.0",
+      "yanked": false,
+      "deps": []
+    }
+  ],
+  "authlib": [
+    {
+      "version": "1.4.0",
+      "yanked": false,
+      "deps": [
+        {
+          "package": "cryptobox",
+          "constraint": ">=1.0.0"
+        }
+      ]
+    },
+    {
+      "version": "1.5.0",
+      "yanked": false,
+      "deps": [
+        {
+          "package": "cryptobox",
+          "constraint": ">=1.0.0"
+        }
+      ]
+    }
+  ]
+}

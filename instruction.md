@@ -1,0 +1,9 @@
+Act as the registry platform engineer picking up after a failed package-registry migration. The migration truncated the authoritative registry index at `/app/data/registry_index.json` and left the control-plane resolver at `/app/workflow/resolver.py` evaluating stale draft rules instead of the registry governance board's final decisions.
+
+Nothing the resolver produces can be trusted until that index is rebuilt. A pre-migration snapshot and a replay journal of the releases that arrived after it survive alongside the truncated file under `/app/data`. How the two merge, which one wins where they overlap, and the order of the result are governance decisions rather than your choice, and the index has to be restored at its expected path before the resolver is worth running.
+
+Then restore the resolver itself. Preserve its `--input` and `--output-dir` options and their defaults, and always read the registry index and the resolution policy from their fixed absolute paths under `/app/data`; `--input` selects the request set only.
+
+`/app/docs/report_spec.json` is the output contract: paths, schemas, required-field lists, field coercions, container shapes and sort orders. It says nothing about how any value is derived. Reconstruct that from `/app/incident/registry_governance_log.md`, which is mostly routine noise and records rules that were drafted, revised and reversed over several months; where entries conflict, the later dated decision governs.
+
+A run writes exactly `/app/output/summary.json`, `/app/output/resolution.json` and `/app/output/install_plan.jsonl`. Derive every value from the operational inputs: no packaging or semver library, no dynamically generated and executed code, correct against an alternate request set, identical across reruns, and leave the frozen incident snapshot in `/app/workflow` untouched.
