@@ -484,28 +484,70 @@ def topological_order(ledger: dict[str, dict]) -> list[tuple[str, bool]]:
     whose deps are all placed, the tie-break is the lexicographically smallest
     package (#REG-7145). Cycles are NON-FATAL (#REG-7148): when no node is
     installable, break the cycle by installing the lexicographically smallest
-    remaining package and flag it cyclic."""
+    remaining package and flag it cyclic.
+
+    Kahn's algorithm with an unplaced-dependency counter, so the whole order
+    costs O(V+E). Rescanning every remaining node each round is quadratic in the
+    resolved set and will not meet the runtime budget at registry scale.
+    """
     nodes = {p for p, r in ledger.items() if r.get("version") is not None
              and r["status"] in {"resolved", "pinned"}}
     deps = {}
     for pkg in nodes:
-        deps[pkg] = sorted({d["package"] for d in ledger[pkg]["deps"] if d["package"] in nodes and d["package"] != pkg})
+        deps[pkg] = sorted({d["package"] for d in ledger[pkg]["deps"]
+                            if d["package"] in nodes and d["package"] != pkg})
+    dependents: dict[str, list[str]] = {p: [] for p in nodes}
+    indegree = {p: len(deps[p]) for p in nodes}
+    for pkg in nodes:
+        for dep in deps[pkg]:
+            dependents[dep].append(pkg)
+
     placed: list[tuple[str, bool]] = []
-    placed_set: set[str] = set()
     remaining = set(nodes)
+    ready = sorted(p for p in nodes if indegree[p] == 0)
     while remaining:
-        ready = sorted(p for p in remaining if all(d in placed_set for d in deps[p]))
         if ready:
-            for p in ready:
-                placed.append((p, False))
-                placed_set.add(p)
-                remaining.discard(p)
+            batch, ready = sorted(ready), []
+            for pkg in batch:
+                placed.append((pkg, False))
+                remaining.discard(pkg)
+            for pkg in batch:
+                for child in dependents[pkg]:
+                    indegree[child] -= 1
+                    if indegree[child] == 0 and child in remaining:
+                        ready.append(child)
         else:
             victim = min(remaining)
             placed.append((victim, True))
-            placed_set.add(victim)
             remaining.discard(victim)
+            for child in dependents[victim]:
+                indegree[child] -= 1
+                if indegree[child] == 0 and child in remaining:
+                    ready.append(child)
     return placed
+
+
+def reach_counts(ledger: dict[str, dict], order: list[tuple[str, bool]]) -> dict[str, int]:
+    """#REG-7172 reach_count per package: distinct packages reachable through
+    dependency edges that run to a package installed EARLIER.
+
+    Each package's reachable set is carried as a bitmask and built once, in
+    install order, by OR-ing the masks its earlier dependencies already have.
+    Recomputing the reachable set per package instead is O(V*(V+E)) over the
+    resolved set and cannot finish inside the runtime budget.
+    """
+    position = {pkg: i for i, (pkg, _) in enumerate(order)}
+    bit = {pkg: 1 << i for i, (pkg, _) in enumerate(order)}
+    masks: dict[str, int] = {}
+    counts: dict[str, int] = {}
+    for pkg, _cyclic in order:
+        mask = 0
+        for dep in {d["package"] for d in ledger[pkg]["deps"]}:
+            if dep in position and position[dep] < position[pkg]:
+                mask |= bit[dep] | masks[dep]
+        masks[pkg] = mask
+        counts[pkg] = mask.bit_count()
+    return counts
 
 
 RESOLUTION_FIELDS = (
@@ -521,6 +563,7 @@ RESOLUTION_FIELDS = (
     "satisfied_constraints",
     "alternatives_considered",
     "alternatives_count",
+    "reach_count",
     "reason",
 )
 PLAN_FIELDS = (
@@ -535,6 +578,7 @@ PLAN_FIELDS = (
     "dep_edges",
     "reselect_count",
     "alternatives_count",
+    "reach_count",
     "reason",
 )
 
@@ -586,6 +630,7 @@ def run(input_path: str, output_dir: str) -> None:
                 "satisfied_constraints": res.get("satisfied_constraints", []),
                 "alternatives_considered": alts,
                 "alternatives_count": len(alts),
+                "reach_count": 0,
                 "reason": res["reason"],
             }
             all_entries.append(entry)
@@ -594,13 +639,19 @@ def run(input_path: str, output_dir: str) -> None:
     plan_cap = resolve_policy("__default__", policy_data)["plan_capacity_cap"]
     ordered_rows: list[dict] = []
     cyclic_packages: list[str] = []
+    # Index the entries once; scanning the whole entry list per package is
+    # quadratic in the resolved set at registry scale.
+    entry_by = {(e["channel"], e["package"]): e for e in all_entries}
     for channel in sorted(per_channel_ledger):
         ledger = per_channel_ledger[channel]
         topo = topological_order(ledger)
+        reach = reach_counts(ledger, topo)          # #REG-7172
+        for pkg, count in reach.items():
+            entry_by[(channel, pkg)]["reach_count"] = count
         for local_idx, (pkg, cyclic) in enumerate(topo):
             res = ledger[pkg]
             dep_edges = sorted({d["package"] for d in res["deps"]})
-            alt_entry = next(e for e in all_entries if e["channel"] == channel and e["package"] == pkg)
+            alt_entry = entry_by[(channel, pkg)]
             if cyclic:
                 cyclic_packages.append(f"{channel}/{pkg}")
             ordered_rows.append({
@@ -614,6 +665,7 @@ def run(input_path: str, output_dir: str) -> None:
                 "dep_edges": dep_edges,
                 "reselect_count": res.get("reselect_count", 0),
                 "alternatives_count": alt_entry["alternatives_count"],
+                "reach_count": reach.get(pkg, 0),
                 "reason": "cycle-break" if cyclic else res["reason"],
                 "_topo": local_idx,
             })
@@ -659,6 +711,7 @@ def run(input_path: str, output_dir: str) -> None:
         "max_reselect_count": pmax("reselect_count"),
         "max_dep_count": pmax("dep_count"),
         "max_alternatives_count": pmax("alternatives_count"),
+        "max_reach_count": max((e["reach_count"] for e in all_entries), default=0),
     }
 
     # --- resolution.json: object keyed by package -> list per channel ---

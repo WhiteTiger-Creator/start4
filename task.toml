@@ -13,7 +13,13 @@ board's final recovery decision -- in-place overwrite of a replayed release, ful
 withdrawn one, journal bookkeeping fields stripped, and a specific resulting order. Every downstream
 artifact is wrong if that merge is wrong: the snapshot still marks a build withdrawn that was later
 republished, and still carries a release the journal retracted, and either one left uncorrected changes
-which version the selection stage picks. Two superseded recovery entries (a February draft that says to
+which version the selection stage picks. Scale is the second constraint: the graded registry holds tens of thousands of releases across a deep,
+heavily shared dependency graph, and the board's reach report asks each entry for the number of distinct
+packages reachable through dependency edges that run to an earlier install. Building that set once per
+package and reusing it costs a single pass; recomputing it per package is quadratic in the resolved set
+and cannot finish inside the 120-second wall-clock budget the contract states. The ordering itself has the
+same shape -- a counter-based topological pass is linear where rescanning every remaining package each
+round is quadratic. Two superseded recovery entries (a February draft that says to
 concatenate the two sources and let the precedence sort settle overlaps, a March interim that appends
 replayed releases at the end and narrows retractions) are there to be traced past. Only then can the
 engineer reconstruct the governance-defined resolution dialect itself from a long, mostly-noise decision
@@ -63,7 +69,8 @@ defaults, and that the registry-index and policy paths actually influence output
 forbids importing packaging/pip/setuptools/semantic_version, and dedicated tests prove the governance
 dialect deviates from standard semver: the reconciler picks the lowest satisfying version where pip
 would pick the highest, treats +build metadata as precedence-significant, admits yanked and pre-release
-builds only under governance exemptions, and keeps cycles non-fatal. The frozen broken snapshot
+builds only under governance exemptions, and keeps cycles non-fatal. It checks the reach report against the sealed fixture, and enforces the 120-second budget on the graded
+run so a per-package recomputation cannot pass. The frozen broken snapshot
 /app/workflow/.resolver.original is asserted present and wrong by hash. Confirmed locally in the real
 two-container flow: after solve.sh the verifier gives reward 1; a fresh environment with no solve.sh
 gives 0, and so does an environment where the resolver is repaired but the index is never recovered.

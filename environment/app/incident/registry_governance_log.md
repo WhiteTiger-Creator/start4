@@ -432,7 +432,7 @@ Thread archived; see the #REG decision entries for anything affecting reconciler
 
 ### Review entry 1100 — quarantine (north) lane
 Shift lead logged a routine observation for quarantine (north) during review window 1100. Dashboard tiles for resolver throughput lagged during index refresh; attributed to mirror staleness, not the reconciler.
-> **Governance decision (2026-05-16 - #REG-7148)** Marek: cycle handling (deviates from a plain topological sort, which fails or drops on cycles): dependency cycles are NON-FATAL — when no remaining package is installable, install the lexicographically smallest remaining package, FLAG it cyclic, and continue; cyclic packages are reported in the summary but still installed
+> **Governance decision (2026-05-16 - #REG-7148)** Marek: cycle handling: dependency cycles are NON-FATAL — when no remaining package is installable, install the lexicographically smallest remaining package, FLAG it cyclic, and continue; cyclic packages are reported in the summary but still installed
 Reviewers should reconcile behaviour questions against #REG governance decisions rather than chat excerpts.
 
 ### Review entry 1101 — channel-canary lane lane
@@ -533,6 +533,8 @@ Shift lead logged a routine observation for mirror (west) during review window 1
 Thread archived; see the #REG decision entries for anything affecting reconciler behaviour.
 
 ### Review entry 1124 — quarantine (north) lane
+> **Governance decision (2026-06-04 - #REG-7172)** Lena: dependency reach reporting, final. Every resolution entry and every install row also carries `reach_count`: the number of DISTINCT packages reachable from that package by following dependency edges among the channel's own resolved packages, counting only edges into a package the #REG-7145/#REG-7148 install order places EARLIER than it, and excluding the package itself. The install order is a total order, so a cycle-broken edge never contributes. The summary carries `max_reach_count` over all resolution entries. Reach is a property of the resolved set, not of a single release: the same package resolved in two channels may report different counts. This settles the #REG-7112 draft, which counted only direct dependencies
+
 Shift lead logged a routine observation for quarantine (north) during review window 1124. Quarterly access recertification touched this lane; no reconciler-relevant configuration changed.
 Reviewers should reconcile behaviour questions against #REG governance decisions rather than chat excerpts.
 

@@ -8,7 +8,13 @@
       "registry_index": "/app/data/registry_index.json",
       "resolution_policy": "/app/data/resolution_policy.json"
     },
-    "prohibited_imports": ["packaging", "pip", "setuptools", "semantic_version", "pkg_resources"]
+    "prohibited_imports": [
+      "packaging",
+      "pip",
+      "setuptools",
+      "semantic_version",
+      "pkg_resources"
+    ]
   },
   "output_files": {
     "summary_json": "summary.json",
@@ -21,24 +27,61 @@
       "type": "string",
       "input_coercion": "str(value).strip().lower(); '_' and '.' runs collapse to a single '-'; repeated '-' collapse; leading/trailing '-' trimmed; an empty result becomes 'unknown'"
     },
-    "source": {"type": "string", "input_coercion": "same as package"},
-    "channel": {"type": "string", "input_coercion": "same as package"},
-    "note": {"type": "string", "input_coercion": "internal whitespace runs collapse to a single space"},
+    "source": {
+      "type": "string",
+      "input_coercion": "same as package"
+    },
+    "channel": {
+      "type": "string",
+      "input_coercion": "same as package"
+    },
+    "note": {
+      "type": "string",
+      "input_coercion": "internal whitespace runs collapse to a single space"
+    },
     "constraint": {
       "type": "string",
       "input_coercion": "internal whitespace runs collapse to a single space",
-      "operators": ["==", ">=", ">", "<=", "<", "~="],
-      "any_tokens": ["", "*"],
+      "operators": [
+        "==",
+        ">=",
+        ">",
+        "<=",
+        "<",
+        "~="
+      ],
+      "any_tokens": [
+        "",
+        "*"
+      ],
       "clause_separator": ","
     },
     "yanked": {
       "type": "boolean",
       "input_coercion": "booleans unchanged; strings true/1/yes after str(...).strip().lower() -> true; other strings -> false; other types -> bool(value)"
     },
-    "version": {"type": "string"},
-    "chosen_version": {"type": "string or null"},
-    "status": {"type": "string", "enum": ["resolved", "pinned", "conflict"]},
-    "status_counts": {"type": "object", "keys": ["resolved", "pinned", "conflict"]},
+    "version": {
+      "type": "string"
+    },
+    "chosen_version": {
+      "type": "string or null"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "resolved",
+        "pinned",
+        "conflict"
+      ]
+    },
+    "status_counts": {
+      "type": "object",
+      "keys": [
+        "resolved",
+        "pinned",
+        "conflict"
+      ]
+    },
     "provenance": {
       "type": "string",
       "enum": [
@@ -64,21 +107,50 @@
         "cycle-break"
       ]
     },
-    "is_prerelease": {"type": "boolean"},
-    "used_yanked": {"type": "boolean"},
-    "cyclic": {"type": "boolean"},
-    "dep_edges": {"type": "array", "items": "string", "order": "ascending, de-duplicated"},
-    "dep_count": {"type": "integer"},
-    "satisfied_constraints": {"type": "array", "items": "string", "order": "ascending"},
-    "alternatives_considered": {"type": "array", "items": "string"},
-    "alternatives_count": {"type": "integer"},
-    "reselect_count": {"type": "integer"},
-    "order_index": {"type": "integer", "order": "0-based, ascending, contiguous"},
+    "is_prerelease": {
+      "type": "boolean"
+    },
+    "used_yanked": {
+      "type": "boolean"
+    },
+    "cyclic": {
+      "type": "boolean"
+    },
+    "dep_edges": {
+      "type": "array",
+      "items": "string",
+      "order": "ascending, de-duplicated"
+    },
+    "dep_count": {
+      "type": "integer"
+    },
+    "satisfied_constraints": {
+      "type": "array",
+      "items": "string",
+      "order": "ascending"
+    },
+    "alternatives_considered": {
+      "type": "array",
+      "items": "string"
+    },
+    "alternatives_count": {
+      "type": "integer"
+    },
+    "reselect_count": {
+      "type": "integer"
+    },
+    "order_index": {
+      "type": "integer",
+      "order": "0-based, ascending, contiguous"
+    },
     "cyclic_packages": {
       "type": "array",
       "items": "string",
       "item_format": "{channel}/{package}",
       "order": "ascending"
+    },
+    "reach_count": {
+      "type": "integer"
     }
   },
   "resolution_json": {
@@ -87,9 +159,20 @@
     "key_sort": "ascending",
     "item_sort": "channel ascending",
     "required_fields": [
-      "channel", "chosen_version", "status", "provenance", "reselect_count", "is_prerelease",
-      "used_yanked", "dep_edges", "dep_count", "satisfied_constraints", "alternatives_considered",
-      "alternatives_count", "reason"
+      "channel",
+      "chosen_version",
+      "status",
+      "provenance",
+      "reselect_count",
+      "is_prerelease",
+      "used_yanked",
+      "dep_edges",
+      "dep_count",
+      "satisfied_constraints",
+      "alternatives_considered",
+      "alternatives_count",
+      "reach_count",
+      "reason"
     ]
   },
   "install_plan": {
@@ -97,8 +180,19 @@
     "container": "one compact JSON object per line, json.dumps(..., separators=(',', ':'))",
     "item_sort": "channel ascending, then install order within the channel",
     "required_fields": [
-      "order_index", "channel", "package", "version", "status", "provenance", "cyclic",
-      "dep_count", "dep_edges", "reselect_count", "alternatives_count", "reason"
+      "order_index",
+      "channel",
+      "package",
+      "version",
+      "status",
+      "provenance",
+      "cyclic",
+      "dep_count",
+      "dep_edges",
+      "reselect_count",
+      "alternatives_count",
+      "reach_count",
+      "reason"
     ]
   },
   "summary_json": {
@@ -106,13 +200,30 @@
     "container": "object",
     "schema_version": "reg-resolve-v1",
     "required_fields": [
-      "schema_version", "raw_request_count", "unique_request_ids", "canonical_request_count",
-      "resolved_package_count", "channel_count", "status_counts", "conflict_count",
-      "cyclic_package_count", "cyclic_packages", "total_reselects", "total_alternatives_considered",
-      "total_conflict_weight", "planned_install_count", "max_reselect_count", "max_dep_count",
-      "max_alternatives_count"
+      "schema_version",
+      "raw_request_count",
+      "unique_request_ids",
+      "canonical_request_count",
+      "resolved_package_count",
+      "channel_count",
+      "status_counts",
+      "conflict_count",
+      "cyclic_package_count",
+      "cyclic_packages",
+      "total_reselects",
+      "total_alternatives_considered",
+      "total_conflict_weight",
+      "planned_install_count",
+      "max_reselect_count",
+      "max_dep_count",
+      "max_alternatives_count",
+      "max_reach_count"
     ],
-    "status_counts_key_order": ["resolved", "pinned", "conflict"]
+    "status_counts_key_order": [
+      "resolved",
+      "pinned",
+      "conflict"
+    ]
   },
   "request_source": {
     "path": "/app/data/requests.json",
@@ -125,5 +236,6 @@
   "policy_source": {
     "path": "/app/data/resolution_policy.json",
     "shape": "{\"default\": {field: int, ...}, \"package_overrides\": {package: {field: int, ...}, ...}, \"pins\": {channel: {package: version}}, \"yanked_exemptions\": [package, ...], \"selection_overrides\": [package, ...], \"channel_priorities\": {channel: {\"allow_prerelease\": bool, \"priority\": int}}}"
-  }
+  },
+  "runtime_budget_seconds": 120
 }
