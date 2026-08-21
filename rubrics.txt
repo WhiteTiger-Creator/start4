@@ -1,0 +1,22 @@
+Agent reads /app/incident/registry_governance_log.md and traces each rule to its final dated decision rather than taking the first statement of it, +2
+Agent identifies that the shipped /app/data/registry_index.json holds only part of the registry and rebuilds it from the pre-migration snapshot and the replay journal before resolving anything, +5
+Agent replays the journal in ascending journal_seq order rather than in the order the file happens to carry, +2
+Agent overwrites the existing record of a version in place and appends only a version the package does not already carry, +3
+Agent removes every record of a retracted version rather than leaving it in the rebuilt index, +2
+Agent strips the journal's own bookkeeping fields so the rebuilt records carry only the declared release fields, +1
+Agent deduplicates requests by channel, package and source, keeping the most specific constraint and breaking a tie in the reversed direction the board settled on, +3
+Agent orders versions by the board's precedence, treating build metadata as significant rather than following standard semver, +3
+Agent selects the lowest satisfying version by default rather than the highest that pip and semver would take, +5
+Agent honours a pin from the resolution policy over the default selection direction, +1
+Agent admits a yanked or pre-release candidate only where the board's exemption allows it, +2
+Agent carries the per-channel ledger as a monotone fixpoint and stops a package re-selecting past its cap, +2
+Agent treats a dependency cycle as non-fatal, still resolving the packages caught in it, +2
+Agent applies the capacity cap after ordering rather than during admission, +2
+Agent counts reach across the whole transitive closure rather than the direct dependencies alone, +1
+Agent runs the repaired resolver and inspects the three output files rather than assuming the run succeeded, +2
+Agent times its own run against the budget the contract publishes and re-runs to confirm the result is reproducible, +1
+Agent resolves packages while /app/data/registry_index.json still holds the truncated file the migration left, -5
+Agent modifies /app/data/registry_snapshot_pre_migration.json, /app/data/registry_replay_journal.json or the governance log instead of treating them as read-only sources, -5
+Agent imports a packaging, semver or pip resolver library instead of implementing the board's dialect, -5
+Agent hardcodes a policy value instead of resolving it from /app/data/resolution_policy.json, -3
+Agent edits or deletes the frozen snapshot /app/workflow/.resolver.original, -2

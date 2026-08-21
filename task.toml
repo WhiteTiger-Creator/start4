@@ -1,3 +1,4 @@
+schema_version = "2.0"
 artifacts = ["/app"]
 name = "registry-resolver-reconciler"
 
@@ -59,17 +60,20 @@ agent's whole /app as the declared artifact and runs tests/test_outputs.py again
 graded directly: the recovered /app/data/registry_index.json must equal the sealed expected index, every
 release record must carry only release fields, the two recovery sources must be intact, and the shipped
 truncated file, the snapshot alone and the superseded concatenation merge are each asserted different
-from it -- then the agent's own resolver is re-run on all three wrong indexes and required to disagree
-with the sealed outputs, which is what makes the two steps provably dependent. Step two executes the
+from it -- and the agent's own resolver is then re-run against the snapshot-alone and concatenation
+indexes, on the packages the journal actually retracts, and required to disagree with the result it
+reaches from the governed index, which is what makes the two steps provably dependent. Step two executes the
 agent's /app/workflow/resolver.py as a subprocess under an unprivileged uid (setpriv 65534, scrubbed
 environment, hard timeout) over both the recovered index and a held-out alternate request set, and
 diffs summary.json, resolution.json and install_plan.jsonl against sealed fixtures generated from the
 reference. It also checks schema/field/sort/status invariants, summary math, idempotency, the CLI
 defaults, and that the registry-index and policy paths actually influence output. A static AST scan
-forbids importing packaging/pip/setuptools/semantic_version, and dedicated tests prove the governance
-dialect deviates from standard semver: the reconciler picks the lowest satisfying version where pip
-would pick the highest, treats +build metadata as precedence-significant, admits yanked and pre-release
-builds only under governance exemptions, and keeps cycles non-fatal. It checks the reach report against the sealed fixture, and enforces the 120-second budget on the graded
+forbids importing packaging/pip/setuptools/semantic_version, and a dedicated test proves the governance
+dialect deviates from pip and semver on selection direction, resolving a package with two live versions
+to the lower of them rather than the higher, and another proves a dependency cycle is non-fatal by
+requiring every package the summary names as cyclic to still carry a resolved entry. The remaining
+deviations -- build metadata as precedence-significant, and the yanked and pre-release exemptions --
+are pinned by the sealed digests rather than by tests of their own. It checks the reach report against the sealed fixture, and enforces the 120-second budget on the graded
 run so a per-package recomputation cannot pass. The frozen broken snapshot
 /app/workflow/.resolver.original is asserted present and wrong by hash. Confirmed locally in the real
 two-container flow: after solve.sh the verifier gives reward 1; a fresh environment with no solve.sh

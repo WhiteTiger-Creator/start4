@@ -7,6 +7,7 @@ import hashlib
 import itertools
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -23,12 +24,15 @@ SNAPSHOT_PATH = Path("/app/data/registry_snapshot_pre_migration.json")
 JOURNAL_PATH = Path("/app/data/registry_replay_journal.json")
 POLICY_PATH = Path("/app/data/resolution_policy.json")
 SPEC_PATH = Path("/app/docs/report_spec.json")
+# The contract is golden metadata: the verifier reads it from its own image,
+# never from the agent-writable copy under /app.
+GOLDEN_CONTRACT_PATH = Path("/tests/fixtures/contract_golden.json")
 LOG_PATH = Path("/app/incident/registry_governance_log.md")
 EXPECTED_FIXTURE = Path("/tests/fixtures/expected_report.json")
 ALT_INPUT = Path("/tests/fixtures/alt_requests.json")
 
 FIXTURE = json.loads(EXPECTED_FIXTURE.read_text())
-SPEC = json.loads(SPEC_PATH.read_text())
+SPEC = json.loads(GOLDEN_CONTRACT_PATH.read_text())
 
 RESOLUTION_KEYS = set(SPEC["resolution_json"]["required_fields"])
 PLAN_KEYS = set(SPEC["install_plan"]["required_fields"])
@@ -246,12 +250,20 @@ def test_reach_is_bounded_by_the_resolved_set(primary_outputs):
 
 
 def test_reach_covers_direct_dependencies(primary_outputs):
-    """A package's reach can never be smaller than its own resolved dep count."""
+    """A package's reach can never be smaller than its own resolved dep count.
+
+    Reach counts everything downstream of a package, so it must be at least the
+    number of edges leaving it. A reach that merely counts the package itself, or
+    stops one level down, fails here.
+    """
     resolution = primary_outputs[2]
     deep = [e for rows in resolution.values() for e in rows if e["reach_count"] > 0]
     assert deep
-    for e in deep[:500]:
-        assert e["reach_count"] >= 1
+    assert any(e["dep_count"] > 0 for e in deep), "no package with dependencies to compare"
+    for e in deep:
+        assert e["reach_count"] >= e["dep_count"], e
+    assert max(e["reach_count"] for e in deep) > max(e["dep_count"] for e in deep), \
+        "reach never exceeds a direct dep count, so it is not transitive"
 
 
 # --------------------------------------------------------------------------
@@ -387,12 +399,18 @@ def test_policy_source_path_affects_output():
 
 
 def test_registry_source_path_affects_output():
+    """The registry index is read from its fixed path, not inlined.
+
+    The victim is drawn from the packages the probe actually resolves; yanking one
+    outside that closure would leave the output identical and prove nothing.
+    """
     rows = _requests(SMALL_ROOTS)
     original = REGISTRY_PATH.read_text(encoding="utf-8")
-    baseline = _run_requests(rows)[1]
+    baseline_run = _run_requests(rows)
+    baseline = baseline_run[1]
     try:
         data = json.loads(original)
-        victim = sorted(data)[0]
+        victim = sorted(set(baseline_run[2]) & set(data))[0]
         data[victim] = [dict(r, yanked=True) for r in data[victim]]
         REGISTRY_PATH.write_text(json.dumps(data, separators=(",", ":")) + "\n", encoding="utf-8")
         mutated = _run_requests(rows)[1]
@@ -413,9 +431,21 @@ def test_capacity_cap_applied_after_ordering(small_outputs):
 
 
 def test_cycles_are_non_fatal(primary_outputs):
-    summary = primary_outputs[1]
-    assert summary["cyclic_package_count"] >= 0
-    assert isinstance(summary["cyclic_packages"], list)
+    """The registry really does contain cycles, and the run resolves them anyway.
+
+    A cycle must not abort the resolution and must not drop the packages caught in
+    it: every named cyclic package still carries a resolved entry.
+    """
+    summary, resolution = primary_outputs[1], primary_outputs[2]
+    named = summary["cyclic_packages"]
+    assert isinstance(named, list)
+    assert summary["cyclic_package_count"] == len(named)
+    assert named, "the graded registry contains no cycle, so the rule is untested"
+    resolved = set(resolution)
+    for entry in named:
+        # the summary names a cycle member as channel/package
+        pkg = entry.split("/", 1)[1] if "/" in entry else entry
+        assert pkg in resolved, f"cyclic package {entry} was dropped from the resolution"
 
 
 def _imported_modules(source: str) -> set[str]:
@@ -454,3 +484,100 @@ def test_pipeline_does_not_reference_test_artifacts():
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
     for marker in ("/tests", "expected_report", "alt_requests", "reward.txt"):
         assert marker not in text
+
+
+def test_shipped_contract_matches_the_golden_copy():
+    """The output contract in the environment is unmodified.
+
+    Field lists, container shapes and sort orders are golden metadata and are read
+    from the verifier's own image; this proves the agent's copy still agrees with
+    it, so the contract cannot be trimmed to weaken a schema check.
+    """
+    shipped = json.loads(SPEC_PATH.read_text(encoding="utf-8"))
+    assert shipped == json.loads(GOLDEN_CONTRACT_PATH.read_text(encoding="utf-8"))
+
+
+
+# --------------------------------------------------------------------------
+# The recovery is load-bearing: each plausible wrong index differs, and the
+# resolver run against it disagrees with the sealed result
+# --------------------------------------------------------------------------
+def _wrong_index(kind: str) -> dict:
+    """Rebuild the index the way a superseded decision would have.
+
+    "snapshot_only" ignores the replay journal altogether. "concatenated" is the
+    #REG-7002 draft: every journal entry is appended to its package rather than
+    overwriting the record already carrying that version, and a retraction
+    removes nothing.
+    """
+    snapshot = _load_json(SNAPSHOT_PATH)
+    index = {package: [dict(r) for r in rows] for package, rows in snapshot.items()}
+    if kind == "snapshot_only":
+        return index
+    for entry in sorted(_load_json(JOURNAL_PATH), key=lambda e: e["journal_seq"]):
+        if entry["journal_op"] != "append":
+            continue          # the draft's defect: a retraction removes nothing
+        index.setdefault(entry["package"], []).append(
+            {f: entry[f] for f in ("version", "yanked", "deps")})
+    return index
+
+
+def test_each_wrong_index_differs_from_the_recovered_one():
+    """The shipped truncation, the snapshot alone and the concatenation all differ."""
+    recovered = FIXTURE["recovered_index_digest"]
+    assert FIXTURE["shipped_truncated_digest"] != recovered
+    assert FIXTURE["snapshot_digest"] != recovered
+    for kind in ("snapshot_only", "concatenated"):
+        assert _digest(_wrong_index(kind)) != recovered, kind
+
+
+def test_resolver_output_depends_on_which_index_it_reads():
+    """Re-running the agent's own resolver on each wrong index disagrees with the seal.
+
+    This is what makes the two stages provably dependent: a resolver that is
+    perfectly repaired still cannot reach the sealed outputs from a wrongly
+    rebuilt index.
+    """
+    # probe the packages the journal actually touches: elsewhere a wrong merge
+    # and the governed one agree, so a probe that misses them proves nothing
+    journal = _load_json(JOURNAL_PATH)
+    retracted = sorted({e["package"] for e in journal if e["journal_op"] == "retract"})
+    assert retracted, "the journal retracts nothing, so the merge rule is untested"
+    rows = _requests(retracted[:3])
+    original = REGISTRY_PATH.read_text(encoding="utf-8")
+    baseline = _run_requests(rows)[1]
+    try:
+        for kind in ("snapshot_only", "concatenated"):
+            REGISTRY_PATH.write_text(
+                json.dumps(_wrong_index(kind), separators=(",", ":")) + "\n", encoding="utf-8")
+            assert _run_requests(rows)[1] != baseline, kind
+    finally:
+        REGISTRY_PATH.write_text(original, encoding="utf-8")
+
+
+def test_the_default_selection_takes_the_lowest_satisfying_version():
+    """Selection direction deviates from pip and semver: lowest wins by default.
+
+    A package offering several satisfying versions resolves to the lowest of them,
+    which the "highest satisfying version" reading gets exactly backwards.
+    """
+    index = _load_json(REGISTRY_PATH)
+    target = next(
+        (pkg for pkg, rows in sorted(index.items())
+         if len([r for r in rows if not r.get("yanked")]) >= 2), None)
+    assert target, "the registry offers no package with two live versions"
+    live = [r["version"] for r in index[target] if not r.get("yanked")]
+
+    def core(version: str) -> tuple[int, int, int]:
+        head = re.match(r"(\d+)\.(\d+)\.(\d+)", version)
+        return tuple(int(g) for g in head.groups()) if head else (0, 0, 0)
+
+    highest = max(live, key=core)
+    lowest = min(live, key=core)
+    assert core(highest) != core(lowest), "the candidates do not differ in version order"
+    resolution = _run_requests(_requests([target], constraint=">=0.0.0"))[2]
+    chosen = resolution[target][0]["chosen_version"]
+    assert chosen in live, chosen
+    assert core(chosen) == core(lowest), (
+        f"selection took {chosen}; the governed direction is the lowest satisfying "
+        f"version, not the highest ({highest})")
