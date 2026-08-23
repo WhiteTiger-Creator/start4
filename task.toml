@@ -1,4 +1,3 @@
-schema_version = "2.0"
 artifacts = ["/app"]
 name = "registry-resolver-reconciler"
 
@@ -85,6 +84,8 @@ run so a per-package recomputation cannot pass. The frozen broken snapshot
 /app/workflow/.resolver.original is asserted present and wrong by hash. Confirmed locally in the real
 two-container flow: after solve.sh the verifier gives reward 1; a fresh environment with no solve.sh
 gives 0, and so does an environment where the resolver is repaired but the index is never recovered.
+
+Every branch the policy and the log define is reached by the graded request set and pinned by name: the pin that binds against a constraint and only on its own channel, a pin naming a version the index does not carry, a yanked build that stays eligible because its package is exempt beside one that is excluded because it is not, the selection override that takes the highest rather than the lowest, that package's own alternative-report cap, a pre-release admitted only where the channel allows one and only at or above the rank floor, and a per-package re-selection cap that freezes a package the baseline cap would have resolved. The two source-path probes check the run the amended input implies rather than merely that it changed: amending the capacity cap to one must leave each channel's first ordered row and nothing else, and yanking every release of a non-exempt package in the closure must turn exactly that package into an unsatisfiable conflict and move the conflict weight by exactly one package's worth.
 '''
 relevant_experience = '''
 Experience recovering a corrupted package index from a snapshot plus a replay journal under

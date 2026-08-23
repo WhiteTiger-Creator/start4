@@ -1,9 +1,19 @@
 {
+  "channel_priorities": {
+    "canary": {
+      "allow_prerelease": true,
+      "priority": 2
+    },
+    "stable": {
+      "allow_prerelease": false,
+      "priority": 1
+    }
+  },
   "default": {
-    "reselect_cap": 2,
-    "prerelease_rank_floor": 3,
+    "conflict_weight": 5,
     "plan_capacity_cap": 3,
-    "conflict_weight": 5
+    "prerelease_rank_floor": 3,
+    "reselect_cap": 2
   },
   "package_overrides": {
     "corelib": {
@@ -15,23 +25,14 @@
   },
   "pins": {
     "stable": {
+      "ghostpin": "9.9.9",
       "legacypin": "0.6.0"
     }
   },
-  "yanked_exemptions": [
-    "hotfix"
-  ],
   "selection_overrides": [
     "cryptobox"
   ],
-  "channel_priorities": {
-    "canary": {
-      "allow_prerelease": true,
-      "priority": 2
-    },
-    "stable": {
-      "allow_prerelease": false,
-      "priority": 1
-    }
-  }
+  "yanked_exemptions": [
+    "hotfix"
+  ]
 }

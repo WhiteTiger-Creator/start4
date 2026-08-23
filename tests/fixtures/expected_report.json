@@ -1,11 +1,11 @@
 {
   "alternate": {
-    "plan_digest": "b9c423c466d6636a1684398fb548fa92a45167599b0a71740abb3c6367a65dd4",
-    "resolution_digest": "4c26ce4607115292477c2d5d9b2c46e8dbef657116e659a62429cc52976c1bac",
+    "plan_digest": "87d3216c730e037d3fef0f78074ed18077bf64d5c9b0dff07ef5b99c2d6c988d",
+    "resolution_digest": "da86caf7d76d9703ae5fb4ea7d3c1954aaa04149568c57486214e906b233de04",
     "summary": {
-      "canonical_request_count": 840,
+      "canonical_request_count": 849,
       "channel_count": 2,
-      "conflict_count": 0,
+      "conflict_count": 2,
       "cyclic_package_count": 11,
       "cyclic_packages": [
         "canary/pkg-06-0392",
@@ -21,33 +21,33 @@
         "stable/pkg-42-0282"
       ],
       "max_alternatives_count": 2,
-      "max_dep_count": 0,
+      "max_dep_count": 1,
       "max_reach_count": 18262,
       "max_reselect_count": 0,
       "planned_install_count": 6,
-      "raw_request_count": 840,
-      "resolved_package_count": 43769,
+      "raw_request_count": 849,
+      "resolved_package_count": 43783,
       "schema_version": "reg-resolve-v1",
       "status_counts": {
-        "conflict": 0,
-        "pinned": 0,
-        "resolved": 43769
+        "conflict": 2,
+        "pinned": 1,
+        "resolved": 43780
       },
-      "total_alternatives_considered": 58334,
-      "total_conflict_weight": 0,
-      "total_reselects": 0,
-      "unique_request_ids": 840
+      "total_alternatives_considered": 58341,
+      "total_conflict_weight": 10,
+      "total_reselects": 2,
+      "unique_request_ids": 849
     }
   },
   "broken_pipeline_sha256": "5e91c1e2b35d4a6fafa31f20105cc5ab685b65b8cf3b15c01a8e9402ee75d5ab",
-  "journal_digest": "51b03c4a62c2f7f53b3db4bde9259128d340bfd8acb78432f32a3d4b22d7db03",
+  "journal_digest": "d5e93193bd9a573aa373459fcc7c92d001ee4e0e469b24a2ed277cd82dbcf0ed",
   "primary": {
-    "plan_digest": "b9c423c466d6636a1684398fb548fa92a45167599b0a71740abb3c6367a65dd4",
-    "resolution_digest": "f13328dba54e800212f6285eb53da4fcf9cd281dd995ed8f12457b2aee2a7291",
+    "plan_digest": "87d3216c730e037d3fef0f78074ed18077bf64d5c9b0dff07ef5b99c2d6c988d",
+    "resolution_digest": "9c0b69514dce1fc449bd00007135218eea2db8036b53c47490b14b85917dde86",
     "summary": {
-      "canonical_request_count": 840,
+      "canonical_request_count": 849,
       "channel_count": 2,
-      "conflict_count": 0,
+      "conflict_count": 2,
       "cyclic_package_count": 12,
       "cyclic_packages": [
         "canary/pkg-06-0392",
@@ -64,27 +64,27 @@
         "stable/pkg-46-0080"
       ],
       "max_alternatives_count": 2,
-      "max_dep_count": 0,
+      "max_dep_count": 1,
       "max_reach_count": 18216,
       "max_reselect_count": 0,
       "planned_install_count": 6,
-      "raw_request_count": 840,
-      "resolved_package_count": 43778,
+      "raw_request_count": 849,
+      "resolved_package_count": 43792,
       "schema_version": "reg-resolve-v1",
       "status_counts": {
-        "conflict": 0,
-        "pinned": 0,
-        "resolved": 43778
+        "conflict": 2,
+        "pinned": 1,
+        "resolved": 43789
       },
-      "total_alternatives_considered": 58325,
-      "total_conflict_weight": 0,
-      "total_reselects": 0,
-      "unique_request_ids": 840
+      "total_alternatives_considered": 58332,
+      "total_conflict_weight": 10,
+      "total_reselects": 2,
+      "unique_request_ids": 849
     }
   },
-  "recovered_index_digest": "e42585126ce3d460456cb6bb1e0c6d060def69f788eb3ce30ce800bb1ed7a824",
-  "recovered_package_count": 24000,
-  "recovered_release_count": 55990,
+  "recovered_index_digest": "bf44a73b0c54b60e669e2345ce38cdb518679ca31156a838a8fd93a8b904e235",
+  "recovered_package_count": 24012,
+  "recovered_release_count": 56016,
   "shipped_truncated_digest": "d75bdf0e08f7e29358edba97d7954ecb7226dc810b6496f0744baac4a02e02ba",
-  "snapshot_digest": "57e5914efb1c34a6e7f6f13f1e93923b7532bc0c2461332b8fe2d20f91da41ff"
+  "snapshot_digest": "42ac8cb7f4412354ecc800bd1ca91d7d0986f71084b0b7f4747851b5dd9652a3"
 }

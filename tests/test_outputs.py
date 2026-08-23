@@ -360,7 +360,13 @@ def test_cli_defaults_work_and_match_explicit_run(primary_outputs):
     default_dir.mkdir(parents=True, exist_ok=True)
     os.chmod(default_dir, 0o777)
     _run_agent([sys.executable, str(WORKFLOW_PATH)], cwd=_candidate_dir())
+    # all three artifacts, not just the summary: a resolver that special-cases the
+    # default invocation must not be able to leave the plan or the resolution behind
+    assert sorted(q.name for q in default_dir.iterdir()) == [
+        "install_plan.jsonl", "resolution.json", "summary.json"]
     assert _load_json(default_dir / "summary.json") == primary_outputs[1]
+    assert _digest(_load_json(default_dir / "resolution.json")) == _digest(primary_outputs[2])
+    assert _digest(_load_jsonl(default_dir / "install_plan.jsonl")) == _digest(primary_outputs[3])
 
 
 def test_submitted_program_runs_unprivileged_and_cannot_write_reward():
@@ -388,24 +394,36 @@ def test_submitted_program_runs_unprivileged_and_cannot_write_reward():
     assert result.stdout.splitlines() == ["65534", "unreadable", "unwritable"], result.stdout
 
 
-def _mutate_and_compare(path: Path, mutate, rows):
-    baseline = _run_requests(rows)[1]
-    original = path.read_text(encoding="utf-8")
-    try:
-        data = json.loads(original)
-        mutate(data)
-        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-        mutated = _run_requests(rows)[1]
-    finally:
-        path.write_text(original, encoding="utf-8")
-    return baseline, mutated
+def test_policy_source_path_decides_the_plan_it_produces():
+    """The capacity cap is resolved from the policy file, and its new value binds.
 
-
-def test_policy_source_path_affects_output():
+    Requiring only that the run come out different would pass a resolver that
+    reads the file and then plans by some constant of its own, so the mutated run
+    is checked against the plan the amended cap implies: #REG-7146 applies the cap
+    after the ordering, so a cap of one keeps each channel's first row and nothing
+    else.
+    """
     rows = _requests(SMALL_ROOTS)
-    base, mut = _mutate_and_compare(
-        POLICY_PATH, lambda d: d.setdefault("default", {}).update({"plan_capacity_cap": 99}), rows)
-    assert base != mut
+    _, base_summary, _, base_plan, _elapsed = _run_requests(rows)
+    assert len(base_plan) > 1, "the probe plans too little to tell a cap from a constant"
+    expected = []
+    seen = set()
+    for row in base_plan:
+        if row["channel"] not in seen:
+            seen.add(row["channel"])
+            expected.append((row["channel"], row["package"], row["version"]))
+
+    original = POLICY_PATH.read_text(encoding="utf-8")
+    try:
+        policy = json.loads(original)
+        policy.setdefault("default", {})["plan_capacity_cap"] = 1
+        POLICY_PATH.write_text(json.dumps(policy, indent=2) + "\n", encoding="utf-8")
+        _, summary, _, plan, _elapsed = _run_requests(rows)
+    finally:
+        POLICY_PATH.write_text(original, encoding="utf-8")
+    assert [(r["channel"], r["package"], r["version"]) for r in plan] == expected
+    assert summary["planned_install_count"] == len(expected)
+    assert summary != base_summary
 
 
 def test_registry_source_path_affects_output():
@@ -416,17 +434,90 @@ def test_registry_source_path_affects_output():
     """
     rows = _requests(SMALL_ROOTS)
     original = REGISTRY_PATH.read_text(encoding="utf-8")
-    baseline_run = _run_requests(rows)
-    baseline = baseline_run[1]
+    _, baseline, base_resolution, _, _elapsed = _run_requests(rows)
+    exempt = set(_load_json(POLICY_PATH).get("yanked_exemptions", []))
     try:
         data = json.loads(original)
-        victim = sorted(set(baseline_run[2]) & set(data))[0]
+        victim = sorted((set(base_resolution) & set(data)) - exempt)[0]
         data[victim] = [dict(r, yanked=True) for r in data[victim]]
         REGISTRY_PATH.write_text(json.dumps(data, separators=(",", ":")) + "\n", encoding="utf-8")
-        mutated = _run_requests(rows)[1]
+        _, summary, resolution, _, _elapsed = _run_requests(rows)
     finally:
         REGISTRY_PATH.write_text(original, encoding="utf-8")
-    assert baseline != mutated
+    # every release of the victim is now yanked and it is not exempt, so #REG-7120
+    # leaves it with no admissible candidate at all
+    assert base_resolution[victim][0]["status"] == "resolved"
+    for entry in resolution[victim]:
+        assert entry["status"] == "conflict", victim
+        assert entry["provenance"] == "unsatisfiable", victim
+        assert entry["chosen_version"] is None, victim
+    weight = _load_json(POLICY_PATH)["default"]["conflict_weight"]
+    added = len(resolution[victim])
+    assert summary["conflict_count"] == baseline["conflict_count"] + added
+    assert summary["total_conflict_weight"] == baseline["total_conflict_weight"] + weight * added
+
+
+# Each entry is a branch the policy and the log define, and each is reached by the
+# graded request set: a resolver that skips one cannot match these.
+GOVERNED_BRANCHES = (
+    ("legacypin", "stable", "0.6.0", "pinned", "pin-override"),
+    ("legacypin", "canary", "1.0.0", "resolved", "default-selection"),
+    ("ghostpin", "stable", None, "conflict", "pin-missing"),
+    ("hotfix", "stable", "1.0.0", "resolved", "yanked-admitted;default-selection"),
+    ("netcore", "stable", "1.4.0", "resolved", "default-selection"),
+    ("cryptobox", "stable", "1.4.0", "resolved", "override-selection"),
+    ("edgekit", "canary", "1.0.0-rc.1", "resolved", "default-selection"),
+    ("edgekit", "stable", "1.2.0", "resolved", "default-selection"),
+    ("corelib", "stable", "3.0.0", "conflict", "reselect-cap-exceeded"),
+)
+
+
+@pytest.mark.parametrize("package,channel,version,status,reason", GOVERNED_BRANCHES)
+def test_each_governed_branch_is_reached_and_settled(
+        primary_outputs, package, channel, version, status, reason):
+    """Every documented branch is exercised by the graded run and settles as ruled.
+
+    The pin binds against the constraint and only on its own channel; a pin naming
+    an absent version is a conflict; a yanked build stays eligible where the policy
+    exempts its package and is excluded where it does not; the override takes the
+    highest rather than the lowest; a pre-release clears the rank floor only on a
+    channel that allows one; and the per-package re-selection cap freezes a package
+    the default cap would have resolved.
+    """
+    resolution = primary_outputs[2]
+    assert package in resolution, package
+    entries = [e for e in resolution[package] if e["channel"] == channel]
+    assert len(entries) == 1, (package, channel)
+    entry = entries[0]
+    assert entry["chosen_version"] == version, (package, channel)
+    assert entry["status"] == status, (package, channel)
+    assert entry["reason"] == reason, (package, channel)
+
+
+def test_the_yanked_exemption_is_what_separates_hotfix_from_netcore(primary_outputs):
+    """The two packages differ only in the exemption list, and only there."""
+    resolution = primary_outputs[2]
+    exempt = set(_load_json(POLICY_PATH)["yanked_exemptions"])
+    assert "hotfix" in exempt and "netcore" not in exempt
+    hotfix = resolution["hotfix"][0]
+    netcore = resolution["netcore"][0]
+    assert hotfix["used_yanked"] is True and hotfix["chosen_version"] == "1.0.0"
+    assert netcore["used_yanked"] is False and netcore["chosen_version"] == "1.4.0"
+    index = _load_json(REGISTRY_PATH)
+    assert {r["version"] for r in index["hotfix"] if r["yanked"]} == {"1.0.0"}
+    assert {r["version"] for r in index["netcore"] if r["yanked"]} == {"1.0.0"}
+
+
+def test_the_package_alternative_cap_overrides_the_baseline(primary_outputs):
+    """cryptobox reports two alternatives where the baseline would report four."""
+    resolution = primary_outputs[2]
+    policy = _load_json(POLICY_PATH)
+    cap = policy["package_overrides"]["cryptobox"]["alt_report_cap"]
+    entry = resolution["cryptobox"][0]
+    index = _load_json(REGISTRY_PATH)
+    assert len(index["cryptobox"]) - 1 > cap, "too few releases to tell the cap from the baseline"
+    assert entry["alternatives_count"] == cap == len(entry["alternatives_considered"])
+    assert entry["chosen_version"] not in entry["alternatives_considered"]
 
 
 def test_capacity_cap_applied_after_ordering(small_outputs):
