@@ -32,6 +32,13 @@ deliberately deviate from vanilla semver / pip resolution, so loading the graph 
 and delegating produces wrong answers and is rejected. Holding the recovery semantics and the whole
 interacting rule set in mind at once is what separates a correct reconstruction from a plausible-looking
 one.
+
+Everything the task ships is synthetic: the registry snapshot, the replay journal, the request set and
+the governance log were generated for this task and describe no real registry, package or maintainer.
+The scale is what makes the challenge a realistic one rather than a toy: twenty-four thousand packages
+and a dependency graph dozens of layers deep is the size at which a resolver's asymptotics start to
+matter, so the per-package recomputation that reads naturally has to give way to an engineered pass to
+come back inside the contract's budget.
 '''
 solution_explanation = '''
 solution/solve.sh drives the two dependent steps inside the environment container. Step one runs
@@ -87,7 +94,7 @@ their final form, matching a byte-level output contract, and deliberately avoidi
 where the governing dialect diverges from standard resolution semantics.
 '''
 category = "Software"
-subcategory = "Languages"
+subcategory = "Algorithms"
 tags = ["package-management", "version-constraints", "dependency-graph", "registry", "incident-recovery"]
 expert_time_estimate_hours = 4
 difficulty = "advanced"

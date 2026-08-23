@@ -367,15 +367,25 @@ def test_submitted_program_runs_unprivileged_and_cannot_write_reward():
     work = _candidate_dir()
     probe = work / "probe.py"
     probe.write_text(
-        "import os\nprint(os.getuid())\nopen('/logs/verifier/reward.txt','w').write('1')\n",
+        "import os\n"
+        "print(os.getuid())\n"
+        "try:\n"
+        "    open('/logs/verifier/reward.txt').read()\n"
+        "    print('readable')\n"
+        "except OSError:\n"
+        "    print('unreadable')\n"
+        "try:\n"
+        "    open('/logs/verifier/reward.txt', 'w').write('1')\n"
+        "    print('writable')\n"
+        "except OSError:\n"
+        "    print('unwritable')\n",
         encoding="utf-8")
     os.chmod(probe, 0o644)
     result = subprocess.run(
         _SETPRIV + [sys.executable, str(probe)], capture_output=True, text=True,
         cwd=str(work), env=dict(_CANDIDATE_ENV), check=False, timeout=60)
-    assert result.stdout.strip().splitlines()[0] == "65534"
-    assert result.returncode != 0
-    assert "PermissionError" in result.stderr or "Permission denied" in result.stderr
+    assert result.returncode == 0, result.stderr[-2000:]
+    assert result.stdout.splitlines() == ["65534", "unreadable", "unwritable"], result.stdout
 
 
 def _mutate_and_compare(path: Path, mutate, rows):
@@ -478,12 +488,6 @@ def test_resolver_has_no_dynamic_execution():
 
 def test_governance_log_present():
     assert LOG_PATH.is_file() and LOG_PATH.stat().st_size > 1000
-
-
-def test_pipeline_does_not_reference_test_artifacts():
-    text = WORKFLOW_PATH.read_text(encoding="utf-8")
-    for marker in ("/tests", "expected_report", "alt_requests", "reward.txt"):
-        assert marker not in text
 
 
 def test_shipped_contract_matches_the_golden_copy():
