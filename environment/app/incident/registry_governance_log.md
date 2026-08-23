@@ -389,7 +389,7 @@ Historical CSV exports remain archived and non-authoritative for the JSON reconc
 
 ### Review entry 1090 — registry-core (primary index) lane
 Shift lead logged a routine observation for registry-core (primary index) during review window 1090. Dashboard tiles for resolver throughput lagged during index refresh; attributed to mirror staleness, not the reconciler.
-> **Governance decision (2026-05-28 - #REG-7160)** Yusuf: re-selection cap, final: when a package would have to re-select beyond its resolved reselect_cap it FREEZES into a 'conflict' (provenance reselect-cap-exceeded) instead of re-resolving further; a re-selection at or below the cap is accepted and its new dependencies enqueued
+> **Governance decision (2026-05-28 - #REG-7160)** Yusuf: re-selection cap, final: when a package would have to re-select beyond its resolved reselect_cap it FREEZES into a 'conflict' (provenance reselect-cap-exceeded) instead of re-resolving further; a re-selection at or below the cap is accepted and its new dependencies enqueued. Freezing refuses the re-selection rather than taking it: the package KEEPS the version it was holding, and unlike the pin-missing and unsatisfiable conflicts — which never chose anything and so report no version — a frozen entry reports that held version as its chosen_version, with the dep_edges, satisfied_constraints and alternatives of the release it kept. Its reselect_count is the re-selection that was refused, so it reads one beyond the cap
 No reconciler semantics changed in this entry; parameters remain as approved by the governance board.
 
 ### Review entry 1091 — publish (edge worker) lane

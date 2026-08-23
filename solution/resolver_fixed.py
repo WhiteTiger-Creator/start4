@@ -445,16 +445,24 @@ def resolve_channel(
                         res = cur
                     else:
                         count = cur.get("reselect_count", 0) + 1
-                        fresh["reselect_count"] = count
                         if count > cap:
-                            fresh["status"] = "conflict"
-                            fresh["provenance"] = "reselect-cap-exceeded"
-                            fresh["reason"] = "reselect-cap-exceeded"
-                            fresh["frozen"] = True
+                            # #REG-7160: beyond the cap the package FREEZES rather
+                            # than re-resolving, so the re-selection is refused and
+                            # the version it was holding stands. The count records
+                            # the re-selection that was refused.
+                            frozen = dict(cur)
+                            frozen["reselect_count"] = count
+                            frozen["status"] = "conflict"
+                            frozen["provenance"] = "reselect-cap-exceeded"
+                            frozen["reason"] = "reselect-cap-exceeded"
+                            frozen["frozen"] = True
+                            ledger[pkg] = frozen
+                            res = frozen
                         else:
+                            fresh["reselect_count"] = count
                             fresh["frozen"] = fresh["status"] == "conflict"
-                        ledger[pkg] = fresh
-                        res = fresh
+                            ledger[pkg] = fresh
+                            res = fresh
                         changed = True
             # enqueue deps of the currently chosen version (monotone).
             if res.get("version") is not None:

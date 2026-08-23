@@ -468,7 +468,7 @@ GOVERNED_BRANCHES = (
     ("cryptobox", "stable", "1.4.0", "resolved", "override-selection"),
     ("edgekit", "canary", "1.0.0-rc.1", "resolved", "default-selection"),
     ("edgekit", "stable", "1.2.0", "resolved", "default-selection"),
-    ("corelib", "stable", "3.0.0", "conflict", "reselect-cap-exceeded"),
+    ("corelib", "stable", "2.0.0", "conflict", "reselect-cap-exceeded"),
 )
 
 
