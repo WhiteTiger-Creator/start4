@@ -352,10 +352,16 @@ def select_entry(
         pin_key = parse_version(pin)
         match = next((e for e in registry.get(package, []) if e["version"] == pin), None)
         if match is None:
+            # #REG-7156: alternatives are the admissible candidates other than
+            # the chosen one. A pin-missing conflict chose nothing, so there is
+            # nothing to exclude and every admissible candidate is reported.
             return {
                 "version": None, "key": None, "status": "conflict",
                 "provenance": "pin-missing", "reason": "pin-missing",
-                "deps": [], "candidates": [], "used_yanked": False, "is_prerelease": False,
+                "deps": [],
+                "candidates": [e["version"] for e in candidate_versions(
+                    package, clauses, channel, registry, policy_data)],
+                "used_yanked": False, "is_prerelease": False,
             }
         return {
             "version": match["version"], "key": pin_key, "status": "pinned",
@@ -452,6 +458,16 @@ def resolve_channel(
                             # the re-selection that was refused.
                             frozen = dict(cur)
                             frozen["reselect_count"] = count
+                            # Only the VERSION is held. Every field the entry
+                            # reports still follows #REG-7156 against the
+                            # constraints as they finally stand, so the
+                            # alternatives are the admissible candidates other
+                            # than the held version, not the set that was
+                            # admissible when it was chosen.
+                            frozen["candidates"] = [
+                                e["version"] for e in candidate_versions(
+                                    pkg, clauses, channel, registry, policy_data)
+                            ]
                             frozen["status"] = "conflict"
                             frozen["provenance"] = "reselect-cap-exceeded"
                             frozen["reason"] = "reselect-cap-exceeded"

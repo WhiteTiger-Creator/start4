@@ -1,7 +1,7 @@
 {
   "alternate": {
     "plan_digest": "87d3216c730e037d3fef0f78074ed18077bf64d5c9b0dff07ef5b99c2d6c988d",
-    "resolution_digest": "1778d832c5c898a1396b6afd079751e93815078acd18825b75c9b583fb0e5b81",
+    "resolution_digest": "23f6cb92178c161047b149ed7abda3445d6676c6d4ff190612b6ee0b962d5c1c",
     "summary": {
       "canonical_request_count": 849,
       "channel_count": 2,
@@ -33,7 +33,7 @@
         "pinned": 1,
         "resolved": 43780
       },
-      "total_alternatives_considered": 58342,
+      "total_alternatives_considered": 58344,
       "total_conflict_weight": 10,
       "total_reselects": 2,
       "unique_request_ids": 849
@@ -43,7 +43,7 @@
   "journal_digest": "d5e93193bd9a573aa373459fcc7c92d001ee4e0e469b24a2ed277cd82dbcf0ed",
   "primary": {
     "plan_digest": "87d3216c730e037d3fef0f78074ed18077bf64d5c9b0dff07ef5b99c2d6c988d",
-    "resolution_digest": "0469e48d161d87d14f501183da39874405c13abe69ee26e43036ca3ea5782653",
+    "resolution_digest": "2ac44f463198c3cb7f68f8e2b767ac88fa1a28961a8349f62c6b9ca0d405c8ce",
     "summary": {
       "canonical_request_count": 849,
       "channel_count": 2,
@@ -76,7 +76,7 @@
         "pinned": 1,
         "resolved": 43789
       },
-      "total_alternatives_considered": 58333,
+      "total_alternatives_considered": 58335,
       "total_conflict_weight": 10,
       "total_reselects": 2,
       "unique_request_ids": 849
