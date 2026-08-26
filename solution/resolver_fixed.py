@@ -21,6 +21,7 @@ import argparse
 import heapq
 import json
 import re
+import shutil
 from pathlib import Path
 
 # Fixed absolute operational-input paths. --input selects the request stream
@@ -356,7 +357,10 @@ def select_entry(
     -- DEVIATES from pip/semver which take the highest); packages named in the
     governance selection_overrides list instead take the HIGHEST.
     """
-    overrides = set(policy_data.get("selection_overrides", []))
+    # Canonicalised like every other package name that carries identity. The
+    # package_overrides and pins lookups already did this; this list was the one
+    # place a policy spelled Crypto_Box failed to match the package crypto-box.
+    overrides = {canon_name(name) for name in policy_data.get("selection_overrides", [])}
     pin = _pin_for(channel, package, policy_data)
     if pin is not None:
         pin_key = parse_version(pin)
@@ -392,7 +396,7 @@ def select_entry(
             "provenance": "unsatisfiable", "reason": "unsatisfiable",
             "deps": [], "candidates": [], "used_yanked": False, "is_prerelease": False,
         }
-    take_highest = package in overrides
+    take_highest = canon_name(package) in overrides
     chosen = max(cands, key=lambda e: e["key"]) if take_highest else min(cands, key=lambda e: e["key"])
     provenance = "override-selection" if take_highest else "default-selection"
     reason = provenance
@@ -789,6 +793,13 @@ def run(input_path: str, output_dir: str) -> None:
 
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
+    # A run leaves exactly the three contracted artifacts, so anything an earlier
+    # run left behind is cleared rather than presented as part of this one.
+    for stale in sorted(out.iterdir()):
+        if stale.is_symlink() or stale.is_file():
+            stale.unlink()
+        elif stale.is_dir():
+            shutil.rmtree(stale, ignore_errors=True)
     (out / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     (out / "resolution.json").write_text(json.dumps(resolution, indent=2) + "\n", encoding="utf-8")
     with (out / "install_plan.jsonl").open("w", encoding="utf-8") as fh:

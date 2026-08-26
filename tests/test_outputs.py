@@ -861,6 +861,113 @@ def test_recovered_index_and_summary_preserve_the_contracted_key_orders(primary_
     assert list(summary["status_counts"].keys()) == wanted, list(summary["status_counts"].keys())
 
 
+# --------------------------------------------------------------------------
+# The documented input coercions and the constraint grammar
+# --------------------------------------------------------------------------
+_COERCION_REGISTRY = {
+    "crypto-box": [
+        {"version": "1.0.0", "yanked": False, "deps": []},
+        {"version": "1.5.0", "yanked": False, "deps": []},
+        {"version": "2.0.0", "yanked": False, "deps": []},
+    ],
+    "unknown": [{"version": "1.0.0", "yanked": False, "deps": []}],
+}
+
+
+def _staged_registry_run(rows):
+    """Resolve `rows` against a small staged registry, restoring it afterwards."""
+    original = REGISTRY_PATH.read_text(encoding="utf-8")
+    try:
+        REGISTRY_PATH.write_text(
+            json.dumps(_COERCION_REGISTRY, separators=(",", ":")) + "\n", encoding="utf-8")
+        return _run_requests(rows)
+    finally:
+        REGISTRY_PATH.write_text(original, encoding="utf-8")
+
+
+def test_stale_files_are_cleared_from_the_output_directory(tmp_path: Path):
+    """A run presents its own artifacts, not whatever an earlier run left behind.
+
+    The contract says a run leaves exactly the three artifacts. Every other check
+    here resolves into a fresh directory, so a resolver that simply wrote its
+    three files over whatever was already there would satisfy all of them while
+    leaving a stale companion visible.
+    """
+    work = _candidate_dir()
+    out_dir = work / "output"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    os.chmod(out_dir, 0o777)
+    stale = out_dir / "stale.tmp"
+    stale.write_text("left over from an earlier run\n", encoding="utf-8")
+    os.chmod(stale, 0o666)
+    shadow = out_dir / "summary.json"
+    shadow.write_text("{}\n", encoding="utf-8")
+    os.chmod(shadow, 0o666)
+    leftover_dir = out_dir / "leftover"
+    leftover_dir.mkdir()
+    (leftover_dir / "inner.json").write_text("{}\n", encoding="utf-8")
+    os.chmod(leftover_dir / "inner.json", 0o666)
+    os.chmod(leftover_dir, 0o777)
+
+    _run_agent([sys.executable, str(WORKFLOW_PATH), "--output-dir", str(out_dir)], cwd=work)
+    names = sorted(q.name for q in out_dir.iterdir())
+    assert names == ["install_plan.jsonl", "resolution.json", "summary.json"], names
+    assert _load_json(out_dir / "summary.json") != {}, "the stale summary was left in place"
+
+
+def test_request_names_are_canonicalised_before_they_are_matched():
+    """report_spec.json's coercion is applied to package, source and channel.
+
+    The graded request set is already canonical, so nothing else here exercises
+    this: a resolver that matched raw names would agree with every sealed fixture
+    while violating the coercion the contract states.
+    """
+    spellings = ["  Crypto_Box  ", "CRYPTO.BOX", "crypto--box", "Crypto._.Box"]
+    rows = [{"request_id": f"c-{i}", "package": name, "source": " App ",
+             "channel": " STABLE ", "constraint": ">=1.0.0", "note": ""}
+            for i, name in enumerate(spellings)]
+    _, _, resolution, _, _elapsed = _staged_registry_run(rows)
+    assert set(resolution) == {"crypto-box"}, sorted(resolution)
+    entry = resolution["crypto-box"][0]
+    assert entry["channel"] == "stable", entry["channel"]
+    assert entry["status"] == "resolved"
+
+
+def test_a_name_that_coerces_to_nothing_becomes_unknown():
+    """An empty result becomes 'unknown', which the contract names explicitly."""
+    rows = [{"request_id": "c-empty", "package": "  --__--  ", "source": "app",
+             "channel": "stable", "constraint": ">=1.0.0", "note": ""}]
+    _, _, resolution, _, _elapsed = _staged_registry_run(rows)
+    assert set(resolution) == {"unknown"}, sorted(resolution)
+
+
+@pytest.mark.parametrize("constraint,expected", [
+    (">=1.0.0", "1.0.0"),
+    (">1.0.0", "1.5.0"),
+    ("==2.0.0", "2.0.0"),
+    ("2.0.0", "2.0.0"),          # #REG-7106: a bare version is an exact ==
+    ("<=1.5.0", "1.0.0"),
+    ("<2.0.0", "1.0.0"),
+    ("", "1.0.0"),               # '' is ANY
+    ("*", "1.0.0"),              # '*' is ANY
+    (">1.0.0,<2.0.0", "1.5.0"),  # a comma joins clauses with AND
+    ("~=1.5", "1.5.0"),          # >=1.5.0,<2.0.0
+    ("  >=  1.5.0  ", "1.5.0"),  # internal whitespace collapses
+])
+def test_every_documented_constraint_operator_selects_as_ruled(constraint, expected):
+    """#REG-7106 names six operators, two any-tokens and a clause separator.
+
+    The graded requests only ever use '>=', so without this a resolver that
+    understood nothing else would still match both sealed fixtures.
+    """
+    rows = [{"request_id": "op-1", "package": "crypto-box", "source": "app",
+             "channel": "stable", "constraint": constraint, "note": ""}]
+    _, _, resolution, _, _elapsed = _staged_registry_run(rows)
+    entry = resolution["crypto-box"][0]
+    assert entry["status"] == "resolved", (constraint, entry)
+    assert entry["chosen_version"] == expected, (constraint, entry["chosen_version"])
+
+
 def test_the_default_selection_takes_the_lowest_satisfying_version():
     """Selection direction deviates from pip and semver: lowest wins by default.
 
