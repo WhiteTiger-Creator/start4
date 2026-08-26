@@ -650,6 +650,68 @@ def test_resolver_output_depends_on_which_index_it_reads():
         REGISTRY_PATH.write_text(original, encoding="utf-8")
 
 
+def test_install_order_takes_the_smallest_package_ready_at_that_moment():
+    """#REG-7145 re-picks after every placement, rather than draining a ready batch.
+
+    A package that becomes installable partway through has to be able to win
+    against one that was installable from the start. With `alpha` free, `beta`
+    depending on `alpha`, and `omega` free, placing `alpha` makes `beta` ready, and
+    `beta` sorts below `omega`, so the order is alpha, beta, omega. Ordering that
+    drains the initially-ready set first emits alpha, omega, beta -- a legal
+    topological order, and the wrong one. The two readings only diverge on a shape
+    like this, which is why the graded registry alone never separated them.
+    """
+    original = REGISTRY_PATH.read_text(encoding="utf-8")
+    try:
+        staged = {
+            "alpha": [{"version": "1.0.0", "yanked": False, "deps": []}],
+            "beta": [{"version": "1.0.0", "yanked": False,
+                      "deps": [{"package": "alpha", "constraint": ">=1.0.0"}]}],
+            "omega": [{"version": "1.0.0", "yanked": False, "deps": []}],
+        }
+        REGISTRY_PATH.write_text(
+            json.dumps(staged, separators=(",", ":")) + "\n", encoding="utf-8")
+        _, _, resolution, plan, _elapsed = _run_requests(_requests(["beta", "omega"]))
+    finally:
+        REGISTRY_PATH.write_text(original, encoding="utf-8")
+
+    assert set(resolution) == {"alpha", "beta", "omega"}, sorted(resolution)
+    order = [row["package"] for row in plan]
+    assert order == ["alpha", "beta", "omega"], order
+    # Name the batch reading explicitly so a regression says what it regressed to.
+    assert order != ["alpha", "omega", "beta"], (
+        "install order drained the initially-ready set before re-picking; #REG-7145 "
+        "chooses the smallest package among those ready at that moment")
+
+
+def test_install_plan_lines_are_all_compact():
+    """Every plan line is compact JSON, not just the first one."""
+    out_dir = _run_pipeline()[0]
+    text = (out_dir / "install_plan.jsonl").read_text(encoding="utf-8")
+    lines = [line for line in text.splitlines() if line.strip()]
+    assert lines
+    for number, line in enumerate(lines, start=1):
+        assert ": " not in line, f"line {number} is not compact"
+        assert json.dumps(json.loads(line), separators=(",", ":")) == line, (
+            f"line {number} is not the compact serialisation of its own content")
+
+
+def test_recovered_index_and_summary_preserve_the_contracted_key_orders(primary_outputs):
+    """Key order is governed, and a digest over sorted keys cannot see it.
+
+    The sealed digests canonicalise with sort_keys, so they pin content and say
+    nothing about the order the keys were written in. #REG-7170 fixes the index
+    order and the contract fixes status_counts, so both are read off the raw text.
+    """
+    index_keys = list(json.loads(
+        REGISTRY_PATH.read_text(encoding="utf-8")).keys())
+    assert index_keys == sorted(index_keys), "the rebuilt index is not in ascending package order"
+
+    _, summary, _, _, _elapsed = primary_outputs
+    wanted = SPEC["summary_json"]["status_counts_key_order"]
+    assert list(summary["status_counts"].keys()) == wanted, list(summary["status_counts"].keys())
+
+
 def test_the_default_selection_takes_the_lowest_satisfying_version():
     """Selection direction deviates from pip and semver: lowest wins by default.
 

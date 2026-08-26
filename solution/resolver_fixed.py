@@ -18,6 +18,7 @@ because the dialect deviates from semver, and is rejected by the verifier.
 from __future__ import annotations
 
 import argparse
+import heapq
 import json
 import re
 from pathlib import Path
@@ -36,7 +37,7 @@ STATUS_ORDER = ["resolved", "pinned", "conflict"]
 # #REG-7104: governance maturity rank for pre-release labels (ga = release).
 MATURITY = {"dev": 0, "alpha": 1, "beta": 2, "rc": 3, "ga": 4}
 GA_RANK = 4
-MAX_PASSES = 64  # fixpoint safety bound; governance resolution is monotone.
+
 
 # Baseline resolution policy (#REG-7150). Any field the policy file omits keeps
 # these values; the policy file may override per default and per package.
@@ -418,9 +419,15 @@ def resolve_channel(
     known = set(seed_constraints)
     ledger: dict[str, dict] = {}
 
+    # The governed resolution is a monotone fixpoint that runs until it is stable.
+    # The bound below is only there so a pathological registry cannot spin forever;
+    # it scales with the registry rather than sitting at a fixed 64, and running
+    # into it raises instead of returning a half-propagated ledger, because a
+    # silently truncated chain would be reported as a confident wrong answer.
+    max_passes = len(registry) + 64
     passes = 0
     changed = True
-    while changed and passes < MAX_PASSES:
+    while changed and passes < max_passes:
         changed = False
         passes += 1
         for pkg in sorted(known):
@@ -448,7 +455,14 @@ def resolve_channel(
                     if cur["status"] == "pinned" and cur["version"] is not None:
                         held_ok = True  # pins never re-select
                     if held_ok:
-                        res = cur
+                        # The version stands, but #REG-7156 reports the alternatives
+                        # admissible under the constraints as they now stand, so the
+                        # candidate list is recomputed rather than carried over from
+                        # when they were looser.
+                        res = dict(cur)
+                        res["candidates"] = [
+                            e["version"] for e in candidate_versions(
+                                pkg, clauses, channel, registry, policy_data)]
                     else:
                         count = cur.get("reselect_count", 0) + 1
                         if count > cap:
@@ -494,6 +508,10 @@ def resolve_channel(
                         clause_text[dpkg].add(ctext)
                         constraints.setdefault(dpkg, []).extend(parse_constraint(ctext))
                         changed = True
+    if changed:
+        raise RuntimeError(
+            f"dependency ledger for channel {channel!r} did not reach a fixpoint "
+            f"in {max_passes} passes")
     for pkg, entry in ledger.items():
         entry["satisfied_constraints"] = sorted(clause_text.get(pkg, set()))
     return ledger
@@ -510,9 +528,10 @@ def topological_order(ledger: dict[str, dict]) -> list[tuple[str, bool]]:
     installable, break the cycle by installing the lexicographically smallest
     remaining package and flag it cyclic.
 
-    Kahn's algorithm with an unplaced-dependency counter, so the whole order
-    costs O(V+E). Rescanning every remaining node each round is quadratic in the
-    resolved set and will not meet the runtime budget at registry scale.
+    Kahn's algorithm with an unplaced-dependency counter and a heap of ready
+    nodes, so the whole order costs O((V+E) log V). Rescanning every remaining
+    node each round is quadratic in the resolved set and will not meet the
+    runtime budget at registry scale.
     """
     nodes = {p for p, r in ledger.items() if r.get("version") is not None
              and r["status"] in {"resolved", "pinned"}}
@@ -528,18 +547,21 @@ def topological_order(ledger: dict[str, dict]) -> list[tuple[str, bool]]:
 
     placed: list[tuple[str, bool]] = []
     remaining = set(nodes)
-    ready = sorted(p for p in nodes if indegree[p] == 0)
+    # A heap, not a sorted batch. #REG-7145 picks the smallest package among those
+    # whose dependencies are placed *at that moment*, so a package that becomes
+    # ready partway through must be able to win against one that was ready earlier:
+    # with a -> b and an independent z, the order is a, b, z and not a, z, b.
+    ready = [p for p in nodes if indegree[p] == 0]
+    heapq.heapify(ready)
     while remaining:
         if ready:
-            batch, ready = sorted(ready), []
-            for pkg in batch:
-                placed.append((pkg, False))
-                remaining.discard(pkg)
-            for pkg in batch:
-                for child in dependents[pkg]:
-                    indegree[child] -= 1
-                    if indegree[child] == 0 and child in remaining:
-                        ready.append(child)
+            pkg = heapq.heappop(ready)
+            placed.append((pkg, False))
+            remaining.discard(pkg)
+            for child in dependents[pkg]:
+                indegree[child] -= 1
+                if indegree[child] == 0 and child in remaining:
+                    heapq.heappush(ready, child)
         else:
             victim = min(remaining)
             placed.append((victim, True))
@@ -547,7 +569,7 @@ def topological_order(ledger: dict[str, dict]) -> list[tuple[str, bool]]:
             for child in dependents[victim]:
                 indegree[child] -= 1
                 if indegree[child] == 0 and child in remaining:
-                    ready.append(child)
+                    heapq.heappush(ready, child)
     return placed
 
 

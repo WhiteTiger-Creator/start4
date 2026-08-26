@@ -1,6 +1,6 @@
 {
   "alternate": {
-    "plan_digest": "87d3216c730e037d3fef0f78074ed18077bf64d5c9b0dff07ef5b99c2d6c988d",
+    "plan_digest": "05e1c411be1a3b8f5201c384f03ff1fea72bf1859512f5e937e7624f5e7c428c",
     "resolution_digest": "23f6cb92178c161047b149ed7abda3445d6676c6d4ff190612b6ee0b962d5c1c",
     "summary": {
       "canonical_request_count": 849,
@@ -20,8 +20,8 @@
         "stable/pkg-28-0247",
         "stable/pkg-42-0282"
       ],
-      "max_alternatives_count": 2,
-      "max_dep_count": 1,
+      "max_alternatives_count": 1,
+      "max_dep_count": 2,
       "max_reach_count": 18262,
       "max_reselect_count": 0,
       "planned_install_count": 6,
@@ -42,7 +42,7 @@
   "broken_pipeline_sha256": "5e91c1e2b35d4a6fafa31f20105cc5ab685b65b8cf3b15c01a8e9402ee75d5ab",
   "journal_digest": "d5e93193bd9a573aa373459fcc7c92d001ee4e0e469b24a2ed277cd82dbcf0ed",
   "primary": {
-    "plan_digest": "87d3216c730e037d3fef0f78074ed18077bf64d5c9b0dff07ef5b99c2d6c988d",
+    "plan_digest": "05e1c411be1a3b8f5201c384f03ff1fea72bf1859512f5e937e7624f5e7c428c",
     "resolution_digest": "2ac44f463198c3cb7f68f8e2b767ac88fa1a28961a8349f62c6b9ca0d405c8ce",
     "summary": {
       "canonical_request_count": 849,
@@ -63,8 +63,8 @@
         "stable/pkg-42-0282",
         "stable/pkg-46-0080"
       ],
-      "max_alternatives_count": 2,
-      "max_dep_count": 1,
+      "max_alternatives_count": 1,
+      "max_dep_count": 2,
       "max_reach_count": 18216,
       "max_reselect_count": 0,
       "planned_install_count": 6,
