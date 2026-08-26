@@ -6725,7 +6725,7 @@
     "source": "platform",
     "channel": "stable",
     "constraint": ">=1.0.0",
-    "note": "pin binds against the constraint"
+    "note": "primary rollout"
   },
   {
     "request_id": "req-00842",
@@ -6733,7 +6733,7 @@
     "source": "platform",
     "channel": "canary",
     "constraint": ">=1.0.0",
-    "note": "no pin on this channel"
+    "note": "pinned lane"
   },
   {
     "request_id": "req-00843",
@@ -6741,7 +6741,7 @@
     "source": "platform",
     "channel": "stable",
     "constraint": ">=1.0.0",
-    "note": "pin names a version the index lacks"
+    "note": ""
   },
   {
     "request_id": "req-00844",
@@ -6749,7 +6749,7 @@
     "source": "platform",
     "channel": "stable",
     "constraint": ">=1.0.0",
-    "note": "yanked build is exempt"
+    "note": "migration backfill"
   },
   {
     "request_id": "req-00845",
@@ -6757,7 +6757,7 @@
     "source": "platform",
     "channel": "stable",
     "constraint": ">=1.0.0",
-    "note": "yanked build is not exempt"
+    "note": "primary rollout"
   },
   {
     "request_id": "req-00846",
@@ -6765,7 +6765,7 @@
     "source": "platform",
     "channel": "stable",
     "constraint": ">=1.0.0",
-    "note": "selection override takes the highest"
+    "note": "pinned lane"
   },
   {
     "request_id": "req-00847",
@@ -6773,7 +6773,7 @@
     "source": "platform",
     "channel": "canary",
     "constraint": ">=0.9.0",
-    "note": "pre-release admitted at the rank floor"
+    "note": ""
   },
   {
     "request_id": "req-00848",
@@ -6781,7 +6781,7 @@
     "source": "platform",
     "channel": "stable",
     "constraint": ">=0.9.0",
-    "note": "pre-release refused off the canary channel"
+    "note": "migration backfill"
   },
   {
     "request_id": "req-00849",
@@ -6789,6 +6789,6 @@
     "source": "platform",
     "channel": "stable",
     "constraint": ">=1.0.0",
-    "note": "forces corelib past its reselect cap"
+    "note": "primary rollout"
   }
 ]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import collections
 import hashlib
 import itertools
 import json
@@ -293,7 +294,73 @@ def test_plan_required_fields(primary_outputs):
     for idx, row in enumerate(plan):
         assert set(row) == PLAN_KEYS
         assert row["order_index"] == idx
-        assert row["status"] in STATUSES
+        # #REG-7174: the plan installs resolved and pinned entries only, so a
+        # conflict row here is a membership error, not merely an odd status.
+        assert row["status"] in {"resolved", "pinned"}, (row["package"], row["status"])
+
+
+def test_a_version_holding_conflict_is_not_installed(primary_outputs):
+    """#REG-7174: plan membership is decided by status, never by having a version.
+
+    corelib freezes under the #REG-7160 re-selection cap and still reports the
+    version it was holding, so "has a chosen_version" and "is installed" come
+    apart exactly here. Without this the rule lived only in the sealed digests.
+    """
+    _, _, resolution, plan, _elapsed = primary_outputs
+    frozen = [e for e in resolution["corelib"] if e["channel"] == "stable"]
+    assert len(frozen) == 1, frozen
+    entry = frozen[0]
+    assert entry["status"] == "conflict"
+    assert entry["provenance"] == "reselect-cap-exceeded"
+    assert entry["chosen_version"] is not None, "the freeze holds the version it had"
+    assert entry["reach_count"] == 0, "an entry the plan never places reaches nothing"
+
+    installed = {(row["channel"], row["package"]) for row in plan}
+    assert ("stable", "corelib") not in installed, (
+        "a frozen entry took an install row; #REG-7174 excludes it")
+
+    # The rule stated over the whole run, so this cannot pass by luck on one
+    # package: nothing outside the ordered set ever reaches a plan row. The
+    # converse does not hold, because #REG-7146 defers ordered rows past the cap.
+    for package, entries in resolution.items():
+        for e in entries:
+            if (e["channel"], package) in installed:
+                assert e["status"] in {"resolved", "pinned"}, (
+                    package, e["channel"], e["status"])
+            if e["status"] not in {"resolved", "pinned"}:
+                assert e["reach_count"] == 0, (package, e["channel"], e["reach_count"])
+
+    # And the absences are the cap's doing, not silent dropping: each channel
+    # carries as many rows as it has orderable entries, up to the cap.
+    cap = _load_json(POLICY_PATH)["default"]["plan_capacity_cap"]
+    orderable = collections.Counter(
+        e["channel"] for entries in resolution.values() for e in entries
+        if e["status"] in {"resolved", "pinned"})
+    rows = collections.Counter(row["channel"] for row in plan)
+    for channel, available in orderable.items():
+        assert rows[channel] == min(available, cap), (channel, rows[channel], available, cap)
+
+
+def test_a_frozen_entry_contributes_no_reach_to_its_dependents(primary_outputs):
+    """An edge into a package the plan never places adds nothing to reach_count.
+
+    #REG-7174 says a dependency satisfied only by a frozen entry is an edge into
+    something the channel does not install, so it cannot be counted. Recomputed
+    here from the plan itself rather than trusted from the digest.
+    """
+    _, _, resolution, plan, _elapsed = primary_outputs
+    position = {(row["channel"], row["package"]): row["order_index"] for row in plan}
+    reachable: dict[tuple, set] = {}
+    for row in sorted(plan, key=lambda r: r["order_index"]):
+        key = (row["channel"], row["package"])
+        seen: set = set()
+        for dep in row["dep_edges"]:
+            dkey = (row["channel"], dep)
+            if dkey in position and position[dkey] < row["order_index"]:
+                seen.add(dkey)
+                seen |= reachable[dkey]
+        reachable[key] = seen
+        assert row["reach_count"] == len(seen), (key, row["reach_count"], len(seen))
 
 
 def test_install_plan_jsonl_compact(primary_outputs):
@@ -569,12 +636,79 @@ def test_ast_check_catches_packaging_importing_engine():
     assert "pip" in _imported_modules("from pip import main\n")
 
 
-def test_resolver_has_no_dynamic_execution():
-    tree = ast.parse(WORKFLOW_PATH.read_text(encoding="utf-8"))
-    banned = {"eval", "exec", "compile"}
+BANNED_DYNAMIC = {"eval", "exec", "compile"}
+
+
+def _dynamic_execution_offences(source: str) -> list[str]:
+    """Names in `source` that reach eval, exec or compile, however they are spelled.
+
+    A bare-name call check only catches `eval(...)`. It misses `builtins.eval(...)`
+    and it misses a rebinding such as `run = eval` or `from builtins import exec as
+    run`, so the ban is followed through attribute access and through aliases.
+    """
+    tree = ast.parse(source)
+    aliases: set[str] = set()
+    # Resolve rebindings first, so a call through one is recognised wherever it sits.
     for node in ast.walk(tree):
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
-            assert node.func.id not in banned
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if alias.name in BANNED_DYNAMIC:
+                    aliases.add(alias.asname or alias.name)
+        elif isinstance(node, ast.Assign):
+            source_name = None
+            if isinstance(node.value, ast.Name) and node.value.id in BANNED_DYNAMIC | aliases:
+                source_name = node.value.id
+            elif (isinstance(node.value, ast.Attribute)
+                  and node.value.attr in BANNED_DYNAMIC
+                  and isinstance(node.value.value, ast.Name)
+                  and node.value.value.id.endswith("builtins")):
+                source_name = node.value.attr
+            if source_name:
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        aliases.add(target.id)
+
+    # Which names refer to the builtins module, so builtins.eval is caught while
+    # re.compile -- an ordinary, entirely legitimate call -- is not.
+    builtin_mods = {"builtins"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "builtins":
+                    builtin_mods.add(alias.asname or alias.name)
+
+    offences = []
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Attribute) and node.attr in BANNED_DYNAMIC
+                and isinstance(node.value, ast.Name) and node.value.id in builtin_mods):
+            offences.append(f"{node.value.id}.{node.attr}")
+        elif isinstance(node, ast.Name) and node.id in BANNED_DYNAMIC | aliases:
+            offences.append(node.id)
+    return offences
+
+
+def test_resolver_has_no_dynamic_execution():
+    """The resolver never reaches eval, exec or compile, by any spelling."""
+    offences = _dynamic_execution_offences(WORKFLOW_PATH.read_text(encoding="utf-8"))
+    assert not offences, f"resolver reaches dynamic execution: {sorted(set(offences))}"
+
+
+def test_the_dynamic_execution_ban_catches_an_alias():
+    """Negative control: the ban is only worth having if the aliases fail it.
+
+    Each of these passed the previous bare-name check, which is why they are
+    written out here rather than assumed.
+    """
+    for source in (
+            "import builtins\nbuiltins.eval('1')\n",
+            "run = eval\nrun('1')\n",
+            "from builtins import exec as run\nrun('x=1')\n",
+            "import builtins\nrun = builtins.compile\nrun('1', '<s>', 'eval')\n"):
+        assert _dynamic_execution_offences(source), source
+    # and ordinary code still passes, including re.compile, which is not dynamic
+    # execution and which the reference itself uses
+    assert not _dynamic_execution_offences("import json\njson.loads('{}')\n")
+    assert not _dynamic_execution_offences("import re\n_RE = re.compile(r'^a$')\n")
 
 
 def test_governance_log_present():
