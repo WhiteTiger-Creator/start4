@@ -221,6 +221,10 @@ def _constraint_specificity(constraint: str) -> int:
         match = _OP_RE.match(piece)
         if match:
             best = max(best, _SPECIFICITY.get(match.group(1), 1))
+        elif piece and piece != "*":
+            # #REG-7106: a bare version IS an exact ==, so it ranks with == here
+            # rather than with the any-token it merely resembles syntactically.
+            best = max(best, _SPECIFICITY["=="])
     return best
 
 
@@ -328,7 +332,7 @@ def candidate_versions(
 ) -> list[dict]:
     """Entries satisfying every clause under the governance admission rules
     (#REG-7120 yanked exemption, #REG-7122 pre-release channel/floor gate)."""
-    yanked_ok = set(policy_data.get("yanked_exemptions", []))
+    yanked_ok = {canon_name(name) for name in policy_data.get("yanked_exemptions", [])}
     floor = resolve_policy(package, policy_data)["prerelease_rank_floor"]
     allow_pre = _channel_allows_prerelease(channel, policy_data)
     out = []

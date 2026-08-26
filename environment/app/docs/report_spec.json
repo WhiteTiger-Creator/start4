@@ -20,7 +20,8 @@
     "summary_json": "summary.json",
     "resolution_json": "resolution.json",
     "install_plan_jsonl": "install_plan.jsonl",
-    "additional_files_allowed": false
+    "additional_files_allowed": false,
+    "stale_entries": "cleared by the run before it writes: the output directory it is given is left holding exactly the three files above and nothing else, including any pre-existing file or subdirectory unrelated to them"
   },
   "field_types": {
     "package": {

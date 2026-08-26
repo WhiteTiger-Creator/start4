@@ -250,20 +250,42 @@ def test_reach_is_bounded_by_the_resolved_set(primary_outputs):
             assert 0 <= e["reach_count"] < per_channel[e["channel"]]
 
 
-def test_reach_covers_direct_dependencies(primary_outputs):
-    """A package's reach can never be smaller than its own resolved dep count.
+def test_reach_covers_the_dependencies_the_order_places_earlier(primary_outputs):
+    """#REG-7172 counts edges into packages the install order places EARLIER.
 
-    Reach counts everything downstream of a package, so it must be at least the
-    number of edges leaving it. A reach that merely counts the package itself, or
-    stops one level down, fails here.
+    The bound asserted here is the one the rule implies. A blanket
+    reach_count >= dep_count is not: an edge into a package the order places
+    later (a cycle-broken edge) or into one the channel never resolved
+    contributes nothing, so a correct run can report a reach below its own dep
+    count. The install plan is a subsequence of the order, so every package it
+    places before an entry is genuinely earlier in the order, and each such
+    dependency edge is a distinct reachable package.
     """
     resolution = primary_outputs[2]
-    deep = [e for rows in resolution.values() for e in rows if e["reach_count"] > 0]
-    assert deep
-    assert any(e["dep_count"] > 0 for e in deep), "no package with dependencies to compare"
-    for e in deep:
-        assert e["reach_count"] >= e["dep_count"], e
-    assert max(e["reach_count"] for e in deep) > max(e["dep_count"] for e in deep), \
+    plan = primary_outputs[3]
+    placed_before: dict[tuple, set] = {}
+    seen: dict[str, set] = {}
+    for row in plan:
+        earlier = seen.setdefault(row["channel"], set())
+        placed_before[(row["channel"], row["package"])] = set(earlier)
+        earlier.add(row["package"])
+
+    checked = binding = 0
+    for package, rows in resolution.items():
+        for e in rows:
+            earlier = placed_before.get((e["channel"], package))
+            if earlier is None:
+                continue
+            floor = len([d for d in e["dep_edges"] if d in earlier])
+            assert e["reach_count"] >= floor, (e, floor)
+            checked += 1
+            binding += floor > 0
+    assert checked, "no planned entry to measure reach against"
+    assert binding, "no planned entry depends on a package placed earlier, so the bound is vacuous"
+
+    counts = [e["reach_count"] for rows in resolution.values() for e in rows]
+    deps = [e["dep_count"] for rows in resolution.values() for e in rows]
+    assert max(counts) > max(deps), \
         "reach never exceeds a direct dep count, so it is not transitive"
 
 
@@ -885,6 +907,27 @@ def _staged_registry_run(rows):
         REGISTRY_PATH.write_text(original, encoding="utf-8")
 
 
+def _staged_run(rows, registry, policy_patch=None):
+    """Resolve `rows` against a staged registry and an optionally patched policy.
+
+    Both files are restored whatever happens, so a probe cannot leave the graded
+    inputs altered for the fixtures that follow it.
+    """
+    reg_original = REGISTRY_PATH.read_text(encoding="utf-8")
+    pol_original = POLICY_PATH.read_text(encoding="utf-8")
+    try:
+        REGISTRY_PATH.write_text(
+            json.dumps(registry, separators=(",", ":")) + "\n", encoding="utf-8")
+        if policy_patch is not None:
+            policy = json.loads(pol_original)
+            policy_patch(policy)
+            POLICY_PATH.write_text(json.dumps(policy, indent=2) + "\n", encoding="utf-8")
+        return _run_requests(rows)
+    finally:
+        REGISTRY_PATH.write_text(reg_original, encoding="utf-8")
+        POLICY_PATH.write_text(pol_original, encoding="utf-8")
+
+
 def test_stale_files_are_cleared_from_the_output_directory(tmp_path: Path):
     """A run presents its own artifacts, not whatever an earlier run left behind.
 
@@ -994,3 +1037,122 @@ def test_the_default_selection_takes_the_lowest_satisfying_version():
     assert core(chosen) == core(lowest), (
         f"selection took {chosen}; the governed direction is the lowest satisfying "
         f"version, not the highest ({highest})")
+
+
+# --------------------------------------------------------------------------
+# The duplicate-request keep (#REG-7102/#REG-7142) and the policy boundary
+# --------------------------------------------------------------------------
+_DUPE_REGISTRY = {
+    "crypto-box": [
+        {"version": "1.0.0", "yanked": False, "deps": []},
+        {"version": "1.5.0", "yanked": False, "deps": []},
+        {"version": "2.0.0", "yanked": False, "deps": []},
+    ],
+}
+
+
+def _dupe_row(rid, constraint, source="app", note=""):
+    return {"request_id": rid, "package": "crypto-box", "source": source,
+            "channel": "stable", "constraint": constraint, "note": note}
+
+
+def test_a_duplicate_request_keeps_the_most_specific_constraint():
+    """#REG-7102, with the bare version #REG-7106 calls an exact ==.
+
+    Neither graded request set holds a duplicate (channel, package, source), so
+    nothing else exercises the keep at all: a resolver that skipped the whole
+    stage matches both sealed fixtures. A bare version outranks a range here, so
+    a specificity table that only recognises written operators keeps the wrong
+    row and resolves a version lower than the one the board's rule selects.
+    """
+    rows = [_dupe_row("d-1", ">=1.0.0"), _dupe_row("d-2", "1.5.0")]
+    _, summary, resolution, _, _elapsed = _staged_run(rows, _DUPE_REGISTRY)
+    assert summary["raw_request_count"] == 2
+    assert summary["canonical_request_count"] == 1, "the duplicate pair was not reduced to one request"
+    assert resolution["crypto-box"][0]["chosen_version"] == "1.5.0"
+
+
+def test_a_specificity_tie_keeps_the_lexicographically_smaller_constraint():
+    """#REG-7142 reverses the #REG-7109 draft, and only for this comparison.
+
+    Both constraints rank the same, so the tie-break decides which survives and
+    with it which version the run selects. The reversed draft keeps `>=1.5.0`
+    and resolves 1.5.0.
+    """
+    rows = [_dupe_row("t-1", ">=1.5.0"), _dupe_row("t-2", ">=1.0.0")]
+    _, summary, resolution, _, _elapsed = _staged_run(rows, _DUPE_REGISTRY)
+    assert summary["canonical_request_count"] == 1
+    assert resolution["crypto-box"][0]["chosen_version"] == "1.0.0", (
+        "the specificity tie kept the lexicographically larger constraint")
+
+
+def test_the_source_coercion_decides_which_requests_are_duplicates():
+    """`source` is coerced like a package name, and the duplicate key uses it.
+
+    Nothing else here can see the source coercion: the field never reaches an
+    output. It is visible only through the duplicate key, where two spellings of
+    one source collapse into a single request.
+    """
+    rows = [_dupe_row("s-1", ">=1.0.0", source="  App.  "),
+            _dupe_row("s-2", ">=1.0.0", source="app")]
+    _, summary, _resolution, _, _elapsed = _staged_run(rows, _DUPE_REGISTRY)
+    assert summary["raw_request_count"] == 2
+    assert summary["canonical_request_count"] == 1, (
+        "two spellings of one source were treated as separate requests")
+    assert summary["unique_request_ids"] == 2
+
+
+_YANKED_STRING_REGISTRY = {
+    "crypto-box": [
+        {"version": "1.0.0", "yanked": "no", "deps": []},
+        {"version": "1.5.0", "yanked": "true", "deps": []},
+        {"version": "2.0.0", "yanked": False, "deps": []},
+    ],
+}
+
+
+def test_a_string_yanked_flag_is_coerced_as_the_contract_states():
+    """report_spec.json rules on `yanked` strings; plain truthiness gets both wrong.
+
+    A registry record carrying "no" is live and one carrying "true" is yanked.
+    Read as raw truthiness both are yanked, which moves the selection in the
+    stable lane; read as raw strings neither is, which moves it in the canary
+    lane. The two lanes pin the coercion from both sides.
+    """
+    rows = [_dupe_row("y-1", ">=1.0.0"),
+            {"request_id": "y-2", "package": "crypto-box", "source": "app",
+             "channel": "canary", "constraint": ">=1.5.0", "note": ""}]
+    _, _summary, resolution, _, _elapsed = _staged_run(rows, _YANKED_STRING_REGISTRY)
+    by_channel = {e["channel"]: e for e in resolution["crypto-box"]}
+    assert by_channel["stable"]["chosen_version"] == "1.0.0", '"no" is not a yanked release'
+    assert by_channel["stable"]["used_yanked"] is False
+    assert by_channel["canary"]["chosen_version"] == "2.0.0", '"true" is a yanked release'
+    assert by_channel["canary"]["used_yanked"] is False
+
+
+_EXEMPTION_REGISTRY = {
+    "hot-fix": [
+        {"version": "1.0.0", "yanked": True, "deps": []},
+        {"version": "2.0.0", "yanked": False, "deps": []},
+    ],
+}
+
+
+def test_policy_package_names_are_canonicalised_before_they_are_matched():
+    """A package name in the policy is a package name, and is coerced as one.
+
+    The shipped policy spells every name canonically, so the graded run cannot
+    tell a canonicalised lookup from a raw one. Matching the exemption list raw
+    silently drops the exemption for any name the operator wrote differently,
+    which quietly changes the selection instead of failing.
+    """
+    rows = [{"request_id": "x-1", "package": "  Hot.Fix  ", "source": "app",
+             "channel": "stable", "constraint": ">=1.0.0", "note": ""}]
+
+    def patch(policy):
+        policy["yanked_exemptions"] = ["Hot_Fix"]
+
+    _, _summary, resolution, _, _elapsed = _staged_run(rows, _EXEMPTION_REGISTRY, patch)
+    entry = resolution["hot-fix"][0]
+    assert entry["used_yanked"] is True and entry["chosen_version"] == "1.0.0", (
+        "the exemption was not matched against the canonical package name", entry)

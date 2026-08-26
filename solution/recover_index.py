@@ -29,10 +29,13 @@ def recover(snapshot: dict, journal: list[dict]) -> dict:
     for entry in sorted(journal, key=lambda e: e["journal_seq"]):
         package = entry["package"]
         version = entry["version"]
-        rows = index.setdefault(package, [])
         if entry["journal_op"] == "retract":
-            index[package] = [r for r in rows if r["version"] != version]
+            # A retract contributes no record of its own, so a retract naming a
+            # package the snapshot never held leaves no key behind either.
+            if package in index:
+                index[package] = [r for r in index[package] if r["version"] != version]
             continue
+        rows = index.setdefault(package, [])
         record = {field: entry[field] for field in RELEASE_FIELDS}
         for position, existing in enumerate(rows):
             if existing["version"] == version:
