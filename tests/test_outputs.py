@@ -839,7 +839,22 @@ def test_recovered_index_and_summary_preserve_the_contracted_key_orders(primary_
     """
     index_keys = list(json.loads(
         REGISTRY_PATH.read_text(encoding="utf-8")).keys())
-    assert index_keys == sorted(index_keys), "the rebuilt index is not in ascending package order"
+    # #REG-7170 fixes this order as the snapshot's package order, with a package
+    # the snapshot never held added as a new key AT THE END. Asserting ascending
+    # order instead would only be testing that the shipped snapshot happens to be
+    # sorted, and would fail a correct rebuild the moment the journal introduces a
+    # package that sorts earlier than one already there.
+    snapshot = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+    journal = json.loads(JOURNAL_PATH.read_text(encoding="utf-8"))
+    expected_keys = list(snapshot)
+    seen = set(expected_keys)
+    for entry in sorted(journal, key=lambda e: e["journal_seq"]):
+        if entry.get("journal_op") == "append" and entry["package"] not in seen:
+            seen.add(entry["package"])
+            expected_keys.append(entry["package"])
+    assert index_keys == expected_keys, (
+        "the rebuilt index does not carry the snapshot's package order with "
+        "journal-added packages appended")
 
     _, summary, _, _, _elapsed = primary_outputs
     wanted = SPEC["summary_json"]["status_counts_key_order"]

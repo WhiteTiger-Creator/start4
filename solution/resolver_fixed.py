@@ -281,7 +281,12 @@ def resolve_policy(package: str, policy_data: dict) -> dict:
     for field, val in policy_data.get("default", {}).items():
         if field in resolved:
             resolved[field] = _coerce_int(val)
-    override = policy_data.get("package_overrides", {}).get(package)
+    # The documented coercion covers package names wherever they carry identity,
+    # and that includes the policy's own keys: a policy written Crypto_Box has to
+    # match the package canonicalised as crypto-box.
+    overrides = {canon_name(key): value
+                 for key, value in policy_data.get("package_overrides", {}).items()}
+    override = overrides.get(canon_name(package))
     if isinstance(override, dict):
         for field, val in override.items():
             if field in resolved:
@@ -294,13 +299,17 @@ def resolve_policy(package: str, policy_data: dict) -> dict:
 # (#REG-7104, #REG-7106, #REG-7108, #REG-7110, #REG-7120, #REG-7122)
 # --------------------------------------------------------------------------
 def _pin_for(channel: str, package: str, policy_data: dict) -> str | None:
-    pins = policy_data.get("pins", {})
-    scoped = pins.get(channel, {})
-    if isinstance(scoped, dict) and package in scoped:
-        return str(scoped[package]).strip()
-    glob = pins.get("*", {})
-    if isinstance(glob, dict) and package in glob:
-        return str(glob[package]).strip()
+    # The channel and package a pin is filed under are canonicalised before
+    # matching, for the same reason the override keys are. "*" is a scope marker
+    # rather than a channel name, so it is matched literally.
+    raw = policy_data.get("pins", {})
+    scopes = {canon_name(key): value for key, value in raw.items() if key != "*"}
+    for scope in (scopes.get(canon_name(channel), {}), raw.get("*", {})):
+        if not isinstance(scope, dict):
+            continue
+        entries = {canon_name(key): value for key, value in scope.items()}
+        if canon_name(package) in entries:
+            return str(entries[canon_name(package)]).strip()
     return None
 
 
@@ -368,8 +377,11 @@ def select_entry(
             "version": match["version"], "key": pin_key, "status": "pinned",
             "provenance": "pin-override", "reason": "pin-override",
             "deps": match["deps"],
-            "candidates": [e["version"] for e in registry.get(package, [])
-                           if satisfies(e["key"], clauses)],
+            # #REG-7156 reports the ADMISSIBLE candidates, so the yanked and
+            # pre-release gates apply here exactly as on the default path, and as
+            # they already do for the pin-missing conflict above.
+            "candidates": [e["version"] for e in candidate_versions(
+                package, clauses, channel, registry, policy_data)],
             "used_yanked": match["yanked"], "is_prerelease": is_prerelease(pin_key),
         }
 
@@ -537,8 +549,12 @@ def topological_order(ledger: dict[str, dict]) -> list[tuple[str, bool]]:
              and r["status"] in {"resolved", "pinned"}}
     deps = {}
     for pkg in nodes:
+        # A self-dependency is kept. #REG-7148 makes cycles non-fatal without
+        # excusing a one-node one, so a package depending on itself never reaches
+        # indegree zero and is placed by the cycle rule, flagged cyclic like any
+        # other cycle member.
         deps[pkg] = sorted({d["package"] for d in ledger[pkg]["deps"]
-                            if d["package"] in nodes and d["package"] != pkg})
+                            if d["package"] in nodes})
     dependents: dict[str, list[str]] = {p: [] for p in nodes}
     indegree = {p: len(deps[p]) for p in nodes}
     for pkg in nodes:
