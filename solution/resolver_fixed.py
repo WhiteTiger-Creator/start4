@@ -319,7 +319,15 @@ def _pin_for(channel: str, package: str, policy_data: dict) -> str | None:
 
 
 def _channel_allows_prerelease(channel: str, policy_data: dict) -> bool:
-    chan = policy_data.get("channel_priorities", {}).get(channel, {})
+    # A channel name in the policy is a channel name, and is coerced like the one
+    # on a request. Matching the key raw drops the whole entry for any spelling
+    # an operator wrote differently, which silently changes what is admissible
+    # rather than failing.
+    priorities = policy_data.get("channel_priorities", {})
+    if not isinstance(priorities, dict):
+        return False
+    entries = {canon_name(key): value for key, value in priorities.items()}
+    chan = entries.get(canon_name(channel), {})
     return coerce_flag(chan.get("allow_prerelease", False)) if isinstance(chan, dict) else False
 
 
@@ -483,6 +491,11 @@ def resolve_channel(
                         res["candidates"] = [
                             e["version"] for e in candidate_versions(
                                 pkg, clauses, channel, registry, policy_data)]
+                        # ...and the recomputed list is what the ledger holds from
+                        # here on. Left in a copy it was thrown away, so the entry
+                        # that was finally emitted still named the versions that
+                        # were admissible under the looser constraints.
+                        ledger[pkg] = res
                     else:
                         count = cur.get("reselect_count", 0) + 1
                         if count > cap:

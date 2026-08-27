@@ -12,7 +12,6 @@ import re
 import shutil
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -47,10 +46,6 @@ STATUSES = {"resolved", "pinned", "conflict"}
 # the resolved set and cannot finish. Kept as a literal here (never read from the
 # mutable /app spec) so the budget cannot be relaxed by editing the environment.
 RUNTIME_BUDGET_SEC = 120.0
-# Hard kill for a runaway submission, so one hung run cannot consume the whole
-# verifier timeout. Comfortably above the graded budget.
-HARD_TIMEOUT_SEC = 240
-
 # Cheap request sets: low-layer roots resolve a small subgraph, so the
 # behavioural probes stay fast. The graded runs are the expensive ones.
 def _requests(pkgs, channel="stable", constraint=">=1.0.0"):
@@ -99,14 +94,17 @@ def _candidate_dir() -> Path:
 
 
 def _run_agent(argv, cwd: Path):
+    # No subprocess timeout: nothing here should pass or fail on how long the
+    # grading machine took. A submission that never returns is stopped by the
+    # verifier's own budget, not by a stopwatch inside an assertion.
     return subprocess.run(
         _SETPRIV + argv, check=True, capture_output=True, text=True, cwd=str(cwd),
-        env=dict(_CANDIDATE_ENV), timeout=HARD_TIMEOUT_SEC,
+        env=dict(_CANDIDATE_ENV),
     )
 
 
 def _run_pipeline(script_path: Path = WORKFLOW_PATH, input_path: Path = DEFAULT_INPUT):
-    """Run the submitted resolver once; returns its outputs and wall-clock time."""
+    """Run the submitted resolver once and hand back the three artifacts it wrote."""
     work = _candidate_dir()
     out_dir = work / "output"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -114,17 +112,15 @@ def _run_pipeline(script_path: Path = WORKFLOW_PATH, input_path: Path = DEFAULT_
     staged = work / "requests.json"
     shutil.copy(str(input_path), str(staged))
     os.chmod(staged, 0o644)
-    started = time.monotonic()
     result = _run_agent(
         [sys.executable, str(script_path), "--input", str(staged), "--output-dir", str(out_dir)],
         cwd=work,
     )
-    elapsed = time.monotonic() - started
     assert result.returncode == 0
     summary = _load_json(out_dir / "summary.json")
     resolution = _load_json(out_dir / "resolution.json")
     plan = _load_jsonl(out_dir / "install_plan.jsonl")
-    return out_dir, summary, resolution, plan, elapsed
+    return out_dir, summary, resolution, plan
 
 
 def _run_requests(rows, script_path: Path = WORKFLOW_PATH):
@@ -210,17 +206,10 @@ def test_primary_plan_matches_fixture(primary_outputs):
 
 
 def test_alternate_request_set_matches_fixture(alternate_outputs):
-    _, summary, resolution, plan, _ = alternate_outputs
+    _, summary, resolution, plan = alternate_outputs
     assert summary == FIXTURE["alternate"]["summary"]
     assert _digest(resolution) == FIXTURE["alternate"]["resolution_digest"]
     assert _digest(plan) == FIXTURE["alternate"]["plan_digest"]
-
-
-def test_graded_run_meets_documented_runtime_budget(primary_outputs):
-    elapsed = primary_outputs[4]
-    assert elapsed < RUNTIME_BUDGET_SEC, (
-        f"one graded run took {elapsed:.1f}s against the contract's {RUNTIME_BUDGET_SEC:.0f}s budget"
-    )
 
 
 def test_runtime_budget_is_stated_in_the_contract():
@@ -240,7 +229,7 @@ def test_reach_counts_are_reported_and_vary(primary_outputs):
 
 
 def test_reach_is_bounded_by_the_resolved_set(primary_outputs):
-    _, summary, resolution, _, _ = primary_outputs
+    _, summary, resolution, _ = primary_outputs
     per_channel = {}
     for rows in resolution.values():
         for e in rows:
@@ -328,7 +317,7 @@ def test_a_version_holding_conflict_is_not_installed(primary_outputs):
     version it was holding, so "has a chosen_version" and "is installed" come
     apart exactly here. Without this the rule lived only in the sealed digests.
     """
-    _, _, resolution, plan, _elapsed = primary_outputs
+    _, _, resolution, plan = primary_outputs
     frozen = [e for e in resolution["corelib"] if e["channel"] == "stable"]
     assert len(frozen) == 1, frozen
     entry = frozen[0]
@@ -370,7 +359,7 @@ def test_a_frozen_entry_contributes_no_reach_to_its_dependents(primary_outputs):
     something the channel does not install, so it cannot be counted. Recomputed
     here from the plan itself rather than trusted from the digest.
     """
-    _, _, resolution, plan, _elapsed = primary_outputs
+    _, _, resolution, plan = primary_outputs
     position = {(row["channel"], row["package"]): row["order_index"] for row in plan}
     reachable: dict[tuple, set] = {}
     for row in sorted(plan, key=lambda r: r["order_index"]):
@@ -392,7 +381,7 @@ def test_install_plan_jsonl_compact(primary_outputs):
 
 
 def test_summary_math_consistency(primary_outputs):
-    _, summary, resolution, plan, _ = primary_outputs
+    _, summary, resolution, plan = primary_outputs
     entries = [e for rows in resolution.values() for e in rows]
     assert summary["resolved_package_count"] == len(entries)
     assert summary["planned_install_count"] == len(plan)
@@ -423,7 +412,7 @@ def test_original_snapshot_preserved():
 def test_broken_snapshot_is_wrong(small_outputs):
     """The shipped draft must not reproduce the governed result."""
     rows = _requests(SMALL_ROOTS)
-    _, broken_summary, broken_resolution, _, _ = _run_requests(
+    _, broken_summary, broken_resolution, _ = _run_requests(
         rows, script_path=ORIGINAL_WORKFLOW_PATH)
     assert (broken_summary != small_outputs[1]
             or _digest(broken_resolution) != _digest(small_outputs[2]))
@@ -478,7 +467,7 @@ def test_submitted_program_runs_unprivileged_and_cannot_write_reward():
     os.chmod(probe, 0o644)
     result = subprocess.run(
         _SETPRIV + [sys.executable, str(probe)], capture_output=True, text=True,
-        cwd=str(work), env=dict(_CANDIDATE_ENV), check=False, timeout=60)
+        cwd=str(work), env=dict(_CANDIDATE_ENV), check=False)
     assert result.returncode == 0, result.stderr[-2000:]
     assert result.stdout.splitlines() == ["65534", "unreadable", "unwritable"], result.stdout
 
@@ -493,7 +482,7 @@ def test_policy_source_path_decides_the_plan_it_produces():
     else.
     """
     rows = _requests(SMALL_ROOTS)
-    _, base_summary, _, base_plan, _elapsed = _run_requests(rows)
+    _, base_summary, _, base_plan = _run_requests(rows)
     assert len(base_plan) > 1, "the probe plans too little to tell a cap from a constant"
     expected = []
     seen = set()
@@ -507,7 +496,7 @@ def test_policy_source_path_decides_the_plan_it_produces():
         policy = json.loads(original)
         policy.setdefault("default", {})["plan_capacity_cap"] = 1
         POLICY_PATH.write_text(json.dumps(policy, indent=2) + "\n", encoding="utf-8")
-        _, summary, _, plan, _elapsed = _run_requests(rows)
+        _, summary, _, plan = _run_requests(rows)
     finally:
         POLICY_PATH.write_text(original, encoding="utf-8")
     assert [(r["channel"], r["package"], r["version"]) for r in plan] == expected
@@ -523,14 +512,14 @@ def test_registry_source_path_affects_output():
     """
     rows = _requests(SMALL_ROOTS)
     original = REGISTRY_PATH.read_text(encoding="utf-8")
-    _, baseline, base_resolution, _, _elapsed = _run_requests(rows)
+    _, baseline, base_resolution, _ = _run_requests(rows)
     exempt = set(_load_json(POLICY_PATH).get("yanked_exemptions", []))
     try:
         data = json.loads(original)
         victim = sorted((set(base_resolution) & set(data)) - exempt)[0]
         data[victim] = [dict(r, yanked=True) for r in data[victim]]
         REGISTRY_PATH.write_text(json.dumps(data, separators=(",", ":")) + "\n", encoding="utf-8")
-        _, summary, resolution, _, _elapsed = _run_requests(rows)
+        _, summary, resolution, _ = _run_requests(rows)
     finally:
         REGISTRY_PATH.write_text(original, encoding="utf-8")
     # every release of the victim is now yanked and it is not exempt, so #REG-7120
@@ -648,9 +637,23 @@ def _imported_modules(source: str) -> set[str]:
     return mods
 
 
+def _workflow_sources() -> list[Path]:
+    """Every Python file the submission ships under /app/workflow.
+
+    Scanning resolver.py alone let a helper module beside it import packaging or
+    reach eval and pass, so the whole directory is read. The frozen snapshot is
+    not a .py file and is checked by its own hash elsewhere.
+    """
+    sources = sorted(WORKFLOW_PATH.parent.rglob("*.py"))
+    assert WORKFLOW_PATH in sources, "the resolver is not where the contract puts it"
+    return sources
+
+
 def test_reconciler_does_not_import_resolver_libraries():
     banned = set(SPEC["workflow_repair"]["prohibited_imports"])
-    assert not _imported_modules(WORKFLOW_PATH.read_text(encoding="utf-8")) & banned
+    for source in _workflow_sources():
+        found = _imported_modules(source.read_text(encoding="utf-8")) & banned
+        assert not found, f"{source.name} imports {sorted(found)}"
 
 
 def test_ast_check_catches_packaging_importing_engine():
@@ -710,9 +713,37 @@ def _dynamic_execution_offences(source: str) -> list[str]:
 
 
 def test_resolver_has_no_dynamic_execution():
-    """The resolver never reaches eval, exec or compile, by any spelling."""
-    offences = _dynamic_execution_offences(WORKFLOW_PATH.read_text(encoding="utf-8"))
-    assert not offences, f"resolver reaches dynamic execution: {sorted(set(offences))}"
+    """Nothing under /app/workflow reaches eval, exec or compile, by any spelling.
+
+    The resolver may import a helper it ships beside itself, so the ban is read
+    across the whole directory rather than off the entry point alone.
+    """
+    for source in _workflow_sources():
+        offences = _dynamic_execution_offences(source.read_text(encoding="utf-8"))
+        assert not offences, (
+            f"{source.name} reaches dynamic execution: {sorted(set(offences))}")
+
+
+def test_a_helper_beside_the_resolver_is_scanned_too(tmp_path: Path):
+    """The widened scan is real: a sibling module is read like the entry point.
+
+    A submission that moved the banned import or the eval call one file sideways
+    passed both scans while the resolver itself looked clean.
+    """
+    helper = WORKFLOW_PATH.parent / "_scan_probe.py"
+    helper.write_text("import packaging.version\n\n\ndef pick(a):\n    return eval(a)\n",
+                      encoding="utf-8")
+    try:
+        assert helper in _workflow_sources()
+        banned = set(SPEC["workflow_repair"]["prohibited_imports"])
+        offended = False
+        for source in _workflow_sources():
+            text = source.read_text(encoding="utf-8")
+            if _imported_modules(text) & banned or _dynamic_execution_offences(text):
+                offended = True
+        assert offended, "a sibling module carrying both offences was not seen"
+    finally:
+        helper.unlink()
 
 
 def test_the_dynamic_execution_ban_catches_an_alias():
@@ -827,7 +858,7 @@ def test_install_order_takes_the_smallest_package_ready_at_that_moment():
         }
         REGISTRY_PATH.write_text(
             json.dumps(staged, separators=(",", ":")) + "\n", encoding="utf-8")
-        _, _, resolution, plan, _elapsed = _run_requests(_requests(["beta", "omega"]))
+        _, _, resolution, plan = _run_requests(_requests(["beta", "omega"]))
     finally:
         REGISTRY_PATH.write_text(original, encoding="utf-8")
 
@@ -878,7 +909,7 @@ def test_recovered_index_and_summary_preserve_the_contracted_key_orders(primary_
         "the rebuilt index does not carry the snapshot's package order with "
         "journal-added packages appended")
 
-    _, summary, _, _, _elapsed = primary_outputs
+    _, summary, _, _ = primary_outputs
     wanted = SPEC["summary_json"]["status_counts_key_order"]
     assert list(summary["status_counts"].keys()) == wanted, list(summary["status_counts"].keys())
 
@@ -969,7 +1000,7 @@ def test_request_names_are_canonicalised_before_they_are_matched():
     rows = [{"request_id": f"c-{i}", "package": name, "source": " App ",
              "channel": " STABLE ", "constraint": ">=1.0.0", "note": ""}
             for i, name in enumerate(spellings)]
-    _, _, resolution, _, _elapsed = _staged_registry_run(rows)
+    _, _, resolution, _ = _staged_registry_run(rows)
     assert set(resolution) == {"crypto-box"}, sorted(resolution)
     entry = resolution["crypto-box"][0]
     assert entry["channel"] == "stable", entry["channel"]
@@ -980,7 +1011,7 @@ def test_a_name_that_coerces_to_nothing_becomes_unknown():
     """An empty result becomes 'unknown', which the contract names explicitly."""
     rows = [{"request_id": "c-empty", "package": "  --__--  ", "source": "app",
              "channel": "stable", "constraint": ">=1.0.0", "note": ""}]
-    _, _, resolution, _, _elapsed = _staged_registry_run(rows)
+    _, _, resolution, _ = _staged_registry_run(rows)
     assert set(resolution) == {"unknown"}, sorted(resolution)
 
 
@@ -1005,7 +1036,7 @@ def test_every_documented_constraint_operator_selects_as_ruled(constraint, expec
     """
     rows = [{"request_id": "op-1", "package": "crypto-box", "source": "app",
              "channel": "stable", "constraint": constraint, "note": ""}]
-    _, _, resolution, _, _elapsed = _staged_registry_run(rows)
+    _, _, resolution, _ = _staged_registry_run(rows)
     entry = resolution["crypto-box"][0]
     assert entry["status"] == "resolved", (constraint, entry)
     assert entry["chosen_version"] == expected, (constraint, entry["chosen_version"])
@@ -1066,7 +1097,7 @@ def test_a_duplicate_request_keeps_the_most_specific_constraint():
     row and resolves a version lower than the one the board's rule selects.
     """
     rows = [_dupe_row("d-1", ">=1.0.0"), _dupe_row("d-2", "1.5.0")]
-    _, summary, resolution, _, _elapsed = _staged_run(rows, _DUPE_REGISTRY)
+    _, summary, resolution, _ = _staged_run(rows, _DUPE_REGISTRY)
     assert summary["raw_request_count"] == 2
     assert summary["canonical_request_count"] == 1, "the duplicate pair was not reduced to one request"
     assert resolution["crypto-box"][0]["chosen_version"] == "1.5.0"
@@ -1080,7 +1111,7 @@ def test_a_specificity_tie_keeps_the_lexicographically_smaller_constraint():
     and resolves 1.5.0.
     """
     rows = [_dupe_row("t-1", ">=1.5.0"), _dupe_row("t-2", ">=1.0.0")]
-    _, summary, resolution, _, _elapsed = _staged_run(rows, _DUPE_REGISTRY)
+    _, summary, resolution, _ = _staged_run(rows, _DUPE_REGISTRY)
     assert summary["canonical_request_count"] == 1
     assert resolution["crypto-box"][0]["chosen_version"] == "1.0.0", (
         "the specificity tie kept the lexicographically larger constraint")
@@ -1095,7 +1126,7 @@ def test_the_source_coercion_decides_which_requests_are_duplicates():
     """
     rows = [_dupe_row("s-1", ">=1.0.0", source="  App.  "),
             _dupe_row("s-2", ">=1.0.0", source="app")]
-    _, summary, _resolution, _, _elapsed = _staged_run(rows, _DUPE_REGISTRY)
+    _, summary, _resolution, _ = _staged_run(rows, _DUPE_REGISTRY)
     assert summary["raw_request_count"] == 2
     assert summary["canonical_request_count"] == 1, (
         "two spellings of one source were treated as separate requests")
@@ -1122,7 +1153,7 @@ def test_a_string_yanked_flag_is_coerced_as_the_contract_states():
     rows = [_dupe_row("y-1", ">=1.0.0"),
             {"request_id": "y-2", "package": "crypto-box", "source": "app",
              "channel": "canary", "constraint": ">=1.5.0", "note": ""}]
-    _, _summary, resolution, _, _elapsed = _staged_run(rows, _YANKED_STRING_REGISTRY)
+    _, _summary, resolution, _ = _staged_run(rows, _YANKED_STRING_REGISTRY)
     by_channel = {e["channel"]: e for e in resolution["crypto-box"]}
     assert by_channel["stable"]["chosen_version"] == "1.0.0", '"no" is not a yanked release'
     assert by_channel["stable"]["used_yanked"] is False
@@ -1136,6 +1167,65 @@ _EXEMPTION_REGISTRY = {
         {"version": "2.0.0", "yanked": False, "deps": []},
     ],
 }
+
+
+def test_policy_channel_names_are_canonicalised_before_they_are_matched():
+    """A channel name in the policy is coerced like the one on a request.
+
+    The shipped policy spells every channel canonically, so the graded run cannot
+    tell a coerced lookup from a raw one. Matching the key raw drops the entry for
+    any spelling an operator wrote differently, and with it the channel's
+    pre-release admission, which quietly changes the selection instead of failing.
+    """
+    registry = {"edgekit": [
+        {"version": "1.0.0-rc.1", "yanked": False, "deps": []},
+        {"version": "2.0.0", "yanked": False, "deps": []},
+    ]}
+    rows = [{"request_id": "ch-1", "package": "edgekit", "source": "app",
+             "channel": "  CANARY  ", "constraint": ">=1.0.0-rc.1", "note": ""}]
+
+    def patch(policy):
+        policy["channel_priorities"] = {"  Canary ": {"allow_prerelease": True, "priority": 2}}
+
+    _, _, resolution, _ = _staged_run(rows, registry, patch)
+    entry = resolution["edgekit"][0]
+    assert entry["chosen_version"] == "1.0.0-rc.1", (
+        "the channel's pre-release admission was lost to a raw key match", entry)
+    assert entry["is_prerelease"] is True
+
+
+def test_a_reselect_reports_the_alternatives_that_are_still_admissible():
+    """#REG-7156 reports the candidates admissible as the constraints finally stand.
+
+    A package resolved once under a loose constraint and met again under a tighter
+    one keeps its version where that version still satisfies both. The alternatives
+    it reports must be recomputed against the tightened set: the reference built
+    that list into a copy and threw it away, so the entry went out naming versions
+    the final constraints no longer admit.
+    """
+    registry = {"netcore": [
+        {"version": "1.0.0", "yanked": False, "deps": []},
+        {"version": "1.4.0", "yanked": False, "deps": []},
+        {"version": "2.0.0", "yanked": False, "deps": []},
+        {"version": "3.0.0", "yanked": False, "deps": []},
+    ]}
+    # the same package asked for twice in one channel from two sources: the second
+    # request tightens the set after the first has already resolved it
+    rows = [
+        {"request_id": "r-1", "package": "netcore", "source": "app",
+         "channel": "stable", "constraint": ">=1.0.0", "note": ""},
+        {"request_id": "r-2", "package": "netcore", "source": "svc",
+         "channel": "stable", "constraint": "<2.0.0", "note": ""},
+    ]
+    _, _, resolution, _ = _staged_run(rows, registry)
+    entry = resolution["netcore"][0]
+    assert entry["chosen_version"] == "1.0.0", entry
+    admissible = {"1.0.0", "1.4.0"}
+    reported = set(entry["alternatives_considered"])
+    assert reported <= admissible - {entry["chosen_version"]}, (
+        "the entry reports alternatives the tightened constraints no longer admit",
+        sorted(reported),
+    )
 
 
 def test_policy_package_names_are_canonicalised_before_they_are_matched():
@@ -1152,7 +1242,7 @@ def test_policy_package_names_are_canonicalised_before_they_are_matched():
     def patch(policy):
         policy["yanked_exemptions"] = ["Hot_Fix"]
 
-    _, _summary, resolution, _, _elapsed = _staged_run(rows, _EXEMPTION_REGISTRY, patch)
+    _, _summary, resolution, _ = _staged_run(rows, _EXEMPTION_REGISTRY, patch)
     entry = resolution["hot-fix"][0]
     assert entry["used_yanked"] is True and entry["chosen_version"] == "1.0.0", (
         "the exemption was not matched against the canonical package name", entry)

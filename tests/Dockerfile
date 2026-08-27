@@ -17,12 +17,12 @@ RUN mkdir -p /app
 RUN mkdir -p /candidate-work && chmod 1777 /candidate-work
 
 WORKDIR /tests
-COPY test_outputs.py /tests/test_outputs.py
-COPY test.sh /tests/test.sh
-COPY fixtures/ /tests/fixtures/
+# The whole verifier tree in one copy, so a file added here later cannot be left
+# out of the image by a COPY line nobody remembered to add.
+COPY . /tests/
 
 # Keep the held-out fixtures readable only by root, so the unprivileged candidate cannot read
 # expected outputs even though it can be handed staged inputs.
 # Closing the two directories is enough: without search permission on them nothing
 # below can be reached by another uid.
-RUN chmod 700 /tests /tests/fixtures
+RUN chmod -R go-rwx /tests && chmod 700 /tests /tests/fixtures
