@@ -25,4 +25,7 @@ COPY . /tests/
 # expected outputs even though it can be handed staged inputs.
 # Closing the two directories is enough: without search permission on them nothing
 # below can be reached by another uid.
-RUN chmod -R go-rwx /tests && chmod 700 /tests /tests/fixtures
+# Closing the two directories is enough: without search permission on them
+# nothing below can be reached by another uid, so no recursive mode change
+# is needed.
+RUN chmod 700 /tests /tests/fixtures

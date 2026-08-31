@@ -82,7 +82,98 @@ def _digest(value: object) -> str:
 # reward path, read the held-out fixtures under /tests, or interfere with the verifier.
 _CWORK = Path("/candidate-work")
 _run_ctr = itertools.count()
-_SETPRIV = ["setpriv", "--reuid=65534", "--regid=65534", "--clear-groups", "--no-new-privs"]
+CANDIDATE_UID = 65534
+def _setpriv_prefix(base: list) -> list:
+    """The strictest setpriv invocation this image actually supports.
+
+    Dropping the uid is not the whole of it: a candidate that kept inheritable
+    or bounding-set capabilities could regain privilege across an exec. The two
+    flags are probed rather than assumed, because a util-linux without them
+    would make every run fail on the flag rather than on the task.
+    """
+    strict = base + ["--inh-caps=-all", "--bounding-set=-all"]
+    try:
+        probe = subprocess.run(strict + ["/bin/true"], capture_output=True, timeout=30)
+        if probe.returncode == 0:
+            return strict
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return base
+
+
+# Resource ceilings for anything run as the candidate. Deliberately not
+# RLIMIT_AS or RLIMIT_DATA: a language runtime that reserves a large virtual
+# arena at start-up dies under those, so they would kill a correct program
+# rather than a runaway one. These bound the failure modes that actually escape
+# a process group -- forking without end, filling the disk, dumping core.
+_CANDIDATE_NPROC = 512
+_CANDIDATE_FSIZE = 512 * 1024 * 1024
+_CANDIDATE_NOFILE = 1024
+
+
+def _apply_rlimits() -> None:
+    """Run in the child between fork and exec: own session, plus ceilings."""
+    import resource
+
+    for what, limit in (
+        (resource.RLIMIT_NPROC, _CANDIDATE_NPROC),
+        (resource.RLIMIT_FSIZE, _CANDIDATE_FSIZE),
+        (resource.RLIMIT_NOFILE, _CANDIDATE_NOFILE),
+        (resource.RLIMIT_CORE, 0),
+    ):
+        try:
+            _soft, hard = resource.getrlimit(what)
+            ceiling = limit if hard == resource.RLIM_INFINITY else min(limit, hard)
+            resource.setrlimit(what, (ceiling, ceiling))
+        except (ValueError, OSError):
+            continue
+    os.setsid()
+
+
+def _pids_owned_by(uid: int) -> list:
+    """Every live pid whose owner is `uid`, read from /proc."""
+    pids = []
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit():
+            continue
+        try:
+            if os.stat("/proc/" + entry).st_uid == uid:
+                pids.append(int(entry))
+        except OSError:
+            continue
+    return pids
+
+
+def reap_candidate_uid(uid: int = CANDIDATE_UID) -> None:
+    """Kill everything still running as the candidate, whatever group it is in.
+
+    Killing the process group is not enough on its own: a submitted program can
+    call setsid and leave its own group, and would then survive into later tests
+    -- holding the staged inputs of the next run, or still writing into an
+    output directory being read. Ownership is the property that cannot be
+    escaped, so the sweep is by owner.
+    """
+    import signal as _signal
+    import time as _time
+
+    for _ in range(50):
+        pids = _pids_owned_by(uid)
+        if not pids:
+            return
+        for pid in pids:
+            try:
+                os.kill(pid, _signal.SIGKILL)
+            except (ProcessLookupError, PermissionError, OSError):
+                continue
+        for pid in pids:
+            try:
+                os.waitpid(pid, os.WNOHANG)
+            except (ChildProcessError, OSError):
+                continue
+        _time.sleep(0.02)
+
+
+_SETPRIV = _setpriv_prefix(["setpriv", "--reuid=65534", "--regid=65534", "--clear-groups", "--no-new-privs"])
 _CANDIDATE_ENV = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": "/candidate-work", "LANG": "C.UTF-8"}
 
 
@@ -97,10 +188,14 @@ def _run_agent(argv, cwd: Path):
     # No subprocess timeout: nothing here should pass or fail on how long the
     # grading machine took. A submission that never returns is stopped by the
     # verifier's own budget, not by a stopwatch inside an assertion.
-    return subprocess.run(
-        _SETPRIV + argv, check=True, capture_output=True, text=True, cwd=str(cwd),
-        env=dict(_CANDIDATE_ENV),
-    )
+    try:
+        return subprocess.run(
+            _SETPRIV + argv, check=True, capture_output=True, text=True, cwd=str(cwd),
+            env=dict(_CANDIDATE_ENV),
+            preexec_fn=_apply_rlimits,
+        )
+    finally:
+        reap_candidate_uid()
 
 
 def _run_pipeline(script_path: Path = WORKFLOW_PATH, input_path: Path = DEFAULT_INPUT):
@@ -467,7 +562,10 @@ def test_submitted_program_runs_unprivileged_and_cannot_write_reward():
     os.chmod(probe, 0o644)
     result = subprocess.run(
         _SETPRIV + [sys.executable, str(probe)], capture_output=True, text=True,
-        cwd=str(work), env=dict(_CANDIDATE_ENV), check=False)
+        cwd=str(work), env=dict(_CANDIDATE_ENV), check=False,
+        preexec_fn=_apply_rlimits,
+    )
+    reap_candidate_uid()
     assert result.returncode == 0, result.stderr[-2000:]
     assert result.stdout.splitlines() == ["65534", "unreadable", "unwritable"], result.stdout
 
@@ -659,6 +757,60 @@ def test_reconciler_does_not_import_resolver_libraries():
 def test_ast_check_catches_packaging_importing_engine():
     assert "packaging" in _imported_modules("import packaging.version\n")
     assert "pip" in _imported_modules("from pip import main\n")
+
+
+# Loading a module by name at run time never produces an import statement, so the
+# scan above cannot see it: __import__("packaging") reads as an ordinary call.
+_LOADER_NAMES = frozenset({"__import__", "import_module", "load_module", "exec_module"})
+_LOADER_HOLDERS = frozenset({"__builtins__", "builtins", "importlib"})
+
+
+def _runtime_loading_offences(source: str) -> set[str]:
+    """Anything in `source` that could fetch a module by name while it runs.
+
+    The name is caught wherever it is spelled -- called directly, reached through
+    an attribute, rebound to something else, or passed as a string to getattr --
+    because each of those reaches the same loader and none of them is an import
+    statement.
+    """
+    offences: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Name) and node.id in _LOADER_NAMES | _LOADER_HOLDERS:
+            offences.add(node.id)
+        elif isinstance(node, ast.Attribute) and node.attr in _LOADER_NAMES:
+            offences.add(node.attr)
+        elif (isinstance(node, ast.Constant) and isinstance(node.value, str)
+              and node.value in _LOADER_NAMES | _LOADER_HOLDERS):
+            offences.add(node.value)
+    return offences
+
+
+def test_the_resolver_does_not_load_modules_by_name_at_run_time():
+    """The banned engines must be out of reach, not merely un-imported.
+
+    A statement scan passes `__import__("packaging")` and every equivalent of it,
+    so a resolver could delegate the whole version comparison to the library the
+    contract forbids and never write an import line.
+    """
+    offending = {}
+    for source in _workflow_sources():
+        found = _runtime_loading_offences(source.read_text(encoding="utf-8"))
+        if found:
+            offending[source.name] = sorted(found)
+    assert not offending, f"the workflow can load modules by name: {offending}"
+
+
+def test_the_runtime_loading_check_catches_what_it_is_for():
+    for probe in (
+        '__import__("packaging")\n',
+        'import importlib\nimportlib.import_module("packaging")\n',
+        'getattr(__builtins__, "__import__")("packaging")\n',
+        'f = __import__\nf("packaging")\n',
+    ):
+        assert _runtime_loading_offences(probe), probe
+    # an ordinary resolver must not be caught by it
+    assert not _runtime_loading_offences(
+        "import json\nfrom pathlib import Path\nd = json.loads(Path('x').read_text())\n")
 
 
 BANNED_DYNAMIC = {"eval", "exec", "compile"}
