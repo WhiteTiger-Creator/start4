@@ -1,47 +1,25 @@
 {
-  "workflow_repair": {
-    "path": "/app/workflow/resolver.py",
-    "cli_usage": "python3 /app/workflow/resolver.py --input PATH --output-dir PATH",
-    "defaults": {
-      "input": "/app/data/requests.json",
-      "output_dir": "/app/output",
-      "registry_index": "/app/data/registry_index.json",
-      "resolution_policy": "/app/data/resolution_policy.json"
-    },
-    "prohibited_imports": [
-      "packaging",
-      "pip",
-      "setuptools",
-      "semantic_version",
-      "pkg_resources"
-    ]
-  },
-  "output_files": {
-    "summary_json": "summary.json",
-    "resolution_json": "resolution.json",
-    "install_plan_jsonl": "install_plan.jsonl",
-    "additional_files_allowed": false,
-    "stale_entries": "cleared by the run before it writes: the output directory it is given is left holding exactly the three files above and nothing else, including any pre-existing file or subdirectory unrelated to them"
-  },
   "field_types": {
-    "package": {
-      "type": "string",
-      "input_coercion": "str(value).strip().lower(); '_' and '.' runs collapse to a single '-'; repeated '-' collapse; leading/trailing '-' trimmed; an empty result becomes 'unknown'"
+    "alternatives_considered": {
+      "items": "string",
+      "type": "array"
     },
-    "source": {
-      "type": "string",
-      "input_coercion": "same as package"
+    "alternatives_count": {
+      "type": "integer"
     },
     "channel": {
-      "type": "string",
-      "input_coercion": "same as package"
+      "input_coercion": "same as package",
+      "type": "string"
     },
-    "note": {
-      "type": "string",
-      "input_coercion": "internal whitespace runs collapse to a single space"
+    "chosen_version": {
+      "type": "string or null"
     },
     "constraint": {
-      "type": "string",
+      "any_tokens": [
+        "",
+        "*"
+      ],
+      "clause_separator": ",",
       "input_coercion": "internal whitespace runs collapse to a single space",
       "operators": [
         "==",
@@ -51,40 +29,41 @@
         "<",
         "~="
       ],
-      "any_tokens": [
-        "",
-        "*"
-      ],
-      "clause_separator": ","
-    },
-    "yanked": {
-      "type": "boolean",
-      "input_coercion": "booleans unchanged; strings true/1/yes after str(...).strip().lower() -> true; other strings -> false; other types -> bool(value)"
-    },
-    "version": {
       "type": "string"
     },
-    "chosen_version": {
-      "type": "string or null"
+    "cyclic": {
+      "type": "boolean"
     },
-    "status": {
-      "type": "string",
-      "enum": [
-        "resolved",
-        "pinned",
-        "conflict"
-      ]
+    "cyclic_packages": {
+      "item_format": "{channel}/{package}",
+      "items": "string",
+      "order": "ascending",
+      "type": "array"
     },
-    "status_counts": {
-      "type": "object",
-      "keys": [
-        "resolved",
-        "pinned",
-        "conflict"
-      ]
+    "dep_count": {
+      "type": "integer"
+    },
+    "dep_edges": {
+      "items": "string",
+      "order": "ascending, de-duplicated",
+      "type": "array"
+    },
+    "is_prerelease": {
+      "type": "boolean"
+    },
+    "note": {
+      "input_coercion": "internal whitespace runs collapse to a single space",
+      "type": "string"
+    },
+    "order_index": {
+      "order": "0-based, ascending, contiguous",
+      "type": "integer"
+    },
+    "package": {
+      "input_coercion": "str(value).strip().lower(); '_' and '.' runs collapse to a single '-'; repeated '-' collapse; leading/trailing '-' trimmed; an empty result becomes 'unknown'",
+      "type": "string"
     },
     "provenance": {
-      "type": "string",
       "enum": [
         "default-selection",
         "override-selection",
@@ -92,10 +71,13 @@
         "pin-missing",
         "unsatisfiable",
         "reselect-cap-exceeded"
-      ]
+      ],
+      "type": "string"
+    },
+    "reach_count": {
+      "type": "integer"
     },
     "reason": {
-      "type": "string",
       "enum": [
         "default-selection",
         "override-selection",
@@ -106,59 +88,92 @@
         "unsatisfiable",
         "reselect-cap-exceeded",
         "cycle-break"
-      ]
-    },
-    "is_prerelease": {
-      "type": "boolean"
-    },
-    "used_yanked": {
-      "type": "boolean"
-    },
-    "cyclic": {
-      "type": "boolean"
-    },
-    "dep_edges": {
-      "type": "array",
-      "items": "string",
-      "order": "ascending, de-duplicated"
-    },
-    "dep_count": {
-      "type": "integer"
-    },
-    "satisfied_constraints": {
-      "type": "array",
-      "items": "string",
-      "order": "ascending"
-    },
-    "alternatives_considered": {
-      "type": "array",
-      "items": "string"
-    },
-    "alternatives_count": {
-      "type": "integer"
+      ],
+      "type": "string"
     },
     "reselect_count": {
       "type": "integer"
     },
-    "order_index": {
-      "type": "integer",
-      "order": "0-based, ascending, contiguous"
-    },
-    "cyclic_packages": {
-      "type": "array",
+    "satisfied_constraints": {
       "items": "string",
-      "item_format": "{channel}/{package}",
-      "order": "ascending"
+      "order": "ascending",
+      "type": "array"
     },
-    "reach_count": {
-      "type": "integer"
+    "source": {
+      "input_coercion": "same as package",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "resolved",
+        "pinned",
+        "conflict"
+      ],
+      "type": "string"
+    },
+    "status_counts": {
+      "keys": [
+        "resolved",
+        "pinned",
+        "conflict"
+      ],
+      "type": "object"
+    },
+    "used_yanked": {
+      "type": "boolean"
+    },
+    "version": {
+      "type": "string"
+    },
+    "yanked": {
+      "input_coercion": "the registry declares this a boolean and the operational data carries only booleans, so no coercion arises in practice; a value that is not a boolean is read as true only where it is the string 'true', '1' or 'yes' ignoring case and surrounding space, and as its own truthiness otherwise",
+      "type": "boolean"
     }
   },
+  "install_plan": {
+    "container": "one compact JSON object per line, json.dumps(..., separators=(',', ':'))",
+    "item_sort": "channel ascending, then install order within the channel",
+    "output_path": "install_plan.jsonl",
+    "required_fields": [
+      "order_index",
+      "channel",
+      "package",
+      "version",
+      "status",
+      "provenance",
+      "cyclic",
+      "dep_count",
+      "dep_edges",
+      "reselect_count",
+      "alternatives_count",
+      "reach_count",
+      "reason"
+    ]
+  },
+  "output_files": {
+    "additional_files_allowed": false,
+    "install_plan_jsonl": "install_plan.jsonl",
+    "resolution_json": "resolution.json",
+    "stale_entries": "cleared by the run before it writes: the output directory it is given is left holding exactly the three files above and nothing else, including any pre-existing file or subdirectory unrelated to them. The CONTENTS are cleared; the directory itself is not removed and recreated, since the run does not own the path it writes into",
+    "summary_json": "summary.json"
+  },
+  "policy_source": {
+    "path": "/app/data/resolution_policy.json",
+    "shape": "{\"default\": {field: int, ...}, \"package_overrides\": {package: {field: int, ...}, ...}, \"pins\": {channel: {package: version}}, \"yanked_exemptions\": [package, ...], \"selection_overrides\": [package, ...], \"channel_priorities\": {channel: {\"allow_prerelease\": bool, \"priority\": int}}}"
+  },
+  "registry_source": {
+    "path": "/app/data/registry_index.json",
+    "shape": "{package: [{\"version\": str, \"yanked\": bool, \"deps\": [{\"package\": str, \"constraint\": str}, ...]}, ...], ...}"
+  },
+  "request_source": {
+    "path": "/app/data/requests.json",
+    "shape": "[{\"request_id\": str, \"package\": str, \"source\": str, \"channel\": str, \"constraint\": str, \"note\": str}, ...]"
+  },
   "resolution_json": {
-    "output_path": "resolution.json",
     "container": "object keyed by package name, each value the array of that package's per-channel entries",
-    "key_sort": "ascending",
     "item_sort": "channel ascending",
+    "key_sort": "ascending",
+    "output_path": "resolution.json",
     "required_fields": [
       "channel",
       "chosen_version",
@@ -176,30 +191,10 @@
       "reason"
     ]
   },
-  "install_plan": {
-    "output_path": "install_plan.jsonl",
-    "container": "one compact JSON object per line, json.dumps(..., separators=(',', ':'))",
-    "item_sort": "channel ascending, then install order within the channel",
-    "required_fields": [
-      "order_index",
-      "channel",
-      "package",
-      "version",
-      "status",
-      "provenance",
-      "cyclic",
-      "dep_count",
-      "dep_edges",
-      "reselect_count",
-      "alternatives_count",
-      "reach_count",
-      "reason"
-    ]
-  },
+  "runtime_budget_seconds": 120,
   "summary_json": {
-    "output_path": "summary.json",
     "container": "object",
-    "schema_version": "reg-resolve-v1",
+    "output_path": "summary.json",
     "required_fields": [
       "schema_version",
       "raw_request_count",
@@ -220,23 +215,28 @@
       "max_alternatives_count",
       "max_reach_count"
     ],
+    "schema_version": "reg-resolve-v1",
     "status_counts_key_order": [
       "resolved",
       "pinned",
       "conflict"
     ]
   },
-  "request_source": {
-    "path": "/app/data/requests.json",
-    "shape": "[{\"request_id\": str, \"package\": str, \"source\": str, \"channel\": str, \"constraint\": str, \"note\": str}, ...]"
-  },
-  "registry_source": {
-    "path": "/app/data/registry_index.json",
-    "shape": "{package: [{\"version\": str, \"yanked\": bool, \"deps\": [{\"package\": str, \"constraint\": str}, ...]}, ...], ...}"
-  },
-  "policy_source": {
-    "path": "/app/data/resolution_policy.json",
-    "shape": "{\"default\": {field: int, ...}, \"package_overrides\": {package: {field: int, ...}, ...}, \"pins\": {channel: {package: version}}, \"yanked_exemptions\": [package, ...], \"selection_overrides\": [package, ...], \"channel_priorities\": {channel: {\"allow_prerelease\": bool, \"priority\": int}}}"
-  },
-  "runtime_budget_seconds": 120
+  "workflow_repair": {
+    "cli_usage": "python3 /app/workflow/resolver.py --input PATH --output-dir PATH",
+    "defaults": {
+      "input": "/app/data/requests.json",
+      "output_dir": "/app/output",
+      "registry_index": "/app/data/registry_index.json",
+      "resolution_policy": "/app/data/resolution_policy.json"
+    },
+    "path": "/app/workflow/resolver.py",
+    "prohibited_imports": [
+      "packaging",
+      "pip",
+      "setuptools",
+      "semantic_version",
+      "pkg_resources"
+    ]
+  }
 }

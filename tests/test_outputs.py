@@ -527,16 +527,25 @@ def test_pipeline_supports_alternate_input(alternate_outputs):
 
 
 def test_cli_defaults_work_and_match_explicit_run(primary_outputs):
+    # /app is root-owned, so the run cannot replace this directory -- only empty
+    # it, which is what instruction.md and the contract ask for. The contents are
+    # cleared here rather than the directory removed, for the same reason.
     default_dir = Path("/app/output")
-    if default_dir.exists():
-        shutil.rmtree(default_dir)
     default_dir.mkdir(parents=True, exist_ok=True)
+    for stale in sorted(default_dir.iterdir()):
+        stale.unlink() if stale.is_file() or stale.is_symlink() else shutil.rmtree(stale)
     os.chmod(default_dir, 0o777)
+    # something for the run to clear, so the rule is exercised and not assumed
+    (default_dir / "left_behind.json").write_text("{}\n", encoding="utf-8")
+    os.chmod(default_dir / "left_behind.json", 0o666)
+    (default_dir / "scratch").mkdir()
+    os.chmod(default_dir / "scratch", 0o777)
     _run_agent([sys.executable, str(WORKFLOW_PATH)], cwd=_candidate_dir())
     # all three artifacts, not just the summary: a resolver that special-cases the
     # default invocation must not be able to leave the plan or the resolution behind
     assert sorted(q.name for q in default_dir.iterdir()) == [
-        "install_plan.jsonl", "resolution.json", "summary.json"]
+        "install_plan.jsonl", "resolution.json", "summary.json"], (
+        "the run did not clear what an earlier run left in the output directory")
     assert _load_json(default_dir / "summary.json") == primary_outputs[1]
     assert _digest(_load_json(default_dir / "resolution.json")) == _digest(primary_outputs[2])
     assert _digest(_load_jsonl(default_dir / "install_plan.jsonl")) == _digest(primary_outputs[3])
