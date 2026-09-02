@@ -56,7 +56,7 @@ def coerce_flag(value: object) -> bool:
 
 
 def parse_version(text: object) -> tuple[int, int, int, int, int]:
-    # #REG-6004/semver draft: build metadata does NOT affect precedence.
+    # Splits a version string into the tuple it is ordered on.
     raw = str(text).strip()
     if "+" in raw:
         raw = raw.split("+", 1)[0]
@@ -175,8 +175,7 @@ def _constraint_specificity(constraint: str) -> int:
 
 
 def deduplicate(canon_rows: list[dict]) -> list[dict]:
-    # #REG-7109 draft (pre-reversal): on a specificity tie keep the
-    # lexicographically LARGER constraint string.
+    # Collapses rows addressing the same package and channel to one.
     best: dict[tuple, tuple] = {}
     order: dict[tuple, int] = {}
     for idx, row in enumerate(canon_rows):
@@ -215,8 +214,7 @@ def resolve_policy(package: str, policy_data: dict) -> dict:
 
 
 def candidate_versions(package, clauses, channel, registry, policy_data) -> list[dict]:
-    # Draft/semver: pre-releases and yanked builds are always skipped (no
-    # governance exemption, no channel pre-release admission).
+    # The registry entries admissible for this request.
     out = []
     for entry in registry.get(package, []):
         if not satisfies(entry["key"], clauses):
@@ -230,7 +228,7 @@ def candidate_versions(package, clauses, channel, registry, policy_data) -> list
 
 
 def select_entry(package, clauses, channel, registry, policy_data) -> dict:
-    # Standard resolution: HIGHEST satisfying version; pins are ignored.
+    # Picks the entry this request resolves to.
     cands = candidate_versions(package, clauses, channel, registry, policy_data)
     if not cands:
         return {"version": None, "key": None, "status": "conflict", "provenance": "unsatisfiable",
@@ -281,7 +279,7 @@ def resolve_channel(channel, seed_constraints, seed_clause_text, registry, polic
 
 
 def topological_order(ledger) -> list[tuple[str, bool]]:
-    # Draft: plain topological sort; cyclic nodes are dropped from the plan.
+    # Orders the install plan over the resolved ledger.
     nodes = {p for p, r in ledger.items() if r.get("version") is not None and r["status"] in {"resolved", "pinned"}}
     deps = {}
     for pkg in nodes:

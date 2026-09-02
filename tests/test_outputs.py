@@ -611,6 +611,209 @@ def test_policy_source_path_decides_the_plan_it_produces():
     assert summary != base_summary
 
 
+def test_a_cycle_broken_row_reaches_the_plan_and_carries_cycle_break(primary_outputs):
+    """#REG-7148 and #REG-7156, which the shipped capacity cap hides.
+
+    The graded run breaks cycles in six packages per channel, but the cap of
+    three admits only the first rows of a channel and none of them falls inside
+    it, so the plan's `cyclic` flag and the reason substitution the decision
+    requires were both untested. The cycles need the dependency graph the graded
+    request set builds, so the cap is lifted over that set rather than a cycle
+    being staged in isolation.
+    """
+    _, base_summary, _, _ = primary_outputs
+    assert base_summary["cyclic_package_count"] > 0, "the graded run breaks no cycle"
+
+    original = POLICY_PATH.read_text(encoding="utf-8")
+    try:
+        policy = json.loads(original)
+        policy.setdefault("default", {})["plan_capacity_cap"] = 100000
+        POLICY_PATH.write_text(json.dumps(policy, indent=2) + "\n", encoding="utf-8")
+        _, summary, resolution, plan = _run_pipeline()
+    finally:
+        POLICY_PATH.write_text(original, encoding="utf-8")
+
+    assert len(plan) > base_summary["planned_install_count"], (
+        "lifting the capacity cap admitted no further rows, so the cap is a constant")
+    broken = [r for r in plan if r["cyclic"]]
+    assert broken, "no cycle-broken row reached the plan even with the cap lifted"
+    for row in broken:
+        assert row["reason"] == "cycle-break", (
+            f"a row placed by the cycle rule reports {row['reason']!r}; #REG-7156 "
+            "requires cycle-break in place of the entry's own reason")
+    # and a row not placed by the cycle rule still repeats its entry's reason,
+    # so the substitution is targeted rather than blanket
+    straight = [r for r in plan if not r["cyclic"]]
+    assert straight, "every planned row is cycle-broken, so the contrast is untested"
+    for row in straight[:200]:
+        entry = [e for e in resolution[row["package"]] if e["channel"] == row["channel"]]
+        assert entry and row["reason"] == entry[0]["reason"], (
+            f"{row['package']} is not cycle-broken but its plan row does not "
+            "repeat its entry's reason")
+
+
+
+
+def _version_key(text: str) -> tuple:
+    """Order versions the way the registry does, for probe assertions only.
+
+    Core numbers first, then a release ahead of any pre-release of it. Enough to
+    say which of two versions is higher; the graded ordering is the engine's own
+    and is checked by the sealed digests.
+    """
+    raw = str(text).split("+", 1)[0]
+    core, _, pre = raw.partition("-")
+    nums = tuple(int(x) if x.isdigit() else 0 for x in (core.split(".") + ["0", "0"])[:3])
+    return nums + ((0, pre) if pre else (1, ""))
+
+
+def _policy_probe(rows, mutate):
+    """Run a staged request set once as shipped and once under a changed policy."""
+    original = POLICY_PATH.read_text(encoding="utf-8")
+    base = _run_requests(rows)
+    try:
+        policy = json.loads(original)
+        mutate(policy)
+        POLICY_PATH.write_text(json.dumps(policy, indent=2) + "\n", encoding="utf-8")
+        shifted = _run_requests(rows)
+    finally:
+        POLICY_PATH.write_text(original, encoding="utf-8")
+    return base, shifted
+
+
+def test_the_pin_table_is_resolved_from_the_policy():
+    """#REG-7118: a pin binds on its own channel, and the table is not a constant.
+
+    Every graded case runs against the shipped pins, so a resolver carrying them
+    as literals was indistinguishable from one reading the file. Here a package
+    that carries no pin is given one, and the pin has to take the version it
+    names rather than the highest satisfying build.
+    """
+    registry = _load_json(REGISTRY_PATH)
+    package = "netcore"
+    versions = sorted((e["version"] for e in registry.get(package, [])),
+                      key=_version_key)
+    assert len(versions) > 1, f"{package} carries one version, so a pin proves nothing"
+    pinned = versions[0]
+    rows = [{"request_id": "req-1", "package": package, "source": "probe",
+             "channel": "stable", "constraint": ">=0.0.0", "note": ""}]
+    base, shifted = _policy_probe(
+        rows, lambda pol: pol.setdefault("pins", {}).setdefault(
+            "stable", {}).__setitem__(package, pinned))
+    assert base[2][package][0]["chosen_version"] != pinned, (
+        "the probe pinned the version the resolver already chose, so it proves nothing")
+    entry = shifted[2][package][0]
+    assert entry["chosen_version"] == pinned, "the pin table was not read from the policy"
+    assert entry["provenance"] == "pin-override"
+
+
+def test_the_selection_override_list_is_resolved_from_the_policy():
+    """#REG-7126: a package on the list takes the HIGHEST admissible version.
+
+    cryptobox ships on the list, so it is removed here rather than added: the
+    default direction has to give a different version from the override, which
+    is exactly what the list is for.
+    """
+    rows = [{"request_id": "req-1", "package": "cryptobox", "source": "probe",
+             "channel": "stable", "constraint": ">=0.0.0", "note": ""}]
+    def drop(pol):
+        pol["selection_overrides"] = [n for n in pol.get("selection_overrides", [])
+                                      if n != "cryptobox"]
+    base, shifted = _policy_probe(rows, drop)
+    before, after = base[2]["cryptobox"][0], shifted[2]["cryptobox"][0]
+    assert before["provenance"] == "override-selection"
+    assert after["provenance"] == "default-selection", (
+        "removing cryptobox from selection_overrides left it on the override path")
+    assert after["chosen_version"] != before["chosen_version"], (
+        "the override and the default direction pick the same version here, so "
+        "this package cannot tell the list from a constant")
+
+
+
+
+def test_the_reselect_cap_is_resolved_from_the_policy(primary_outputs):
+    """#REG-7160: past the cap a package freezes; lifted, it resolves instead.
+
+    Freezing needs the re-selection chain the graded request set produces -- a
+    package requested on its own never re-selects -- so the cap is lifted over
+    that set and the freeze has to go away. corelib carries an override of one
+    and is the package the graded run freezes.
+    """
+    _, _, base_resolution, _ = primary_outputs
+    frozen = [e for e in base_resolution.get("corelib", [])
+              if e["provenance"] == "reselect-cap-exceeded"]
+    assert frozen, "corelib does not freeze on the graded run, so this proves nothing"
+
+    original = POLICY_PATH.read_text(encoding="utf-8")
+    try:
+        policy = json.loads(original)
+        policy.setdefault("package_overrides", {}).setdefault(
+            "corelib", {})["reselect_cap"] = 99
+        POLICY_PATH.write_text(json.dumps(policy, indent=2) + "\n", encoding="utf-8")
+        _, _, resolution, _ = _run_pipeline()
+    finally:
+        POLICY_PATH.write_text(original, encoding="utf-8")
+    after = [e for e in resolution.get("corelib", [])
+             if e["provenance"] == "reselect-cap-exceeded"]
+    assert not after, (
+        "corelib still froze after its re-selection cap was lifted, so the cap "
+        "is not being read from the policy")
+
+
+
+
+def test_the_prerelease_rank_floor_is_resolved_from_the_policy():
+    """#REG-7122: a pre-release clears the floor only where its rank is high enough.
+
+    edgekit resolves to a release candidate on canary, the one channel that admits
+    pre-releases at all, so raising the floor past any label must shut it out.
+    """
+    rows = [{"request_id": "req-1", "package": "edgekit", "source": "probe",
+             "channel": "canary", "constraint": ">=0.0.0", "note": ""}]
+    base, shifted = _policy_probe(
+        rows, lambda pol: pol.setdefault("default", {}).__setitem__(
+            "prerelease_rank_floor", 99))
+    before = base[2]["edgekit"][0]
+    assert before["is_prerelease"], (
+        "edgekit does not resolve to a pre-release on canary, so the floor is untested")
+    after = shifted[2]["edgekit"][0]
+    assert not after["is_prerelease"], (
+        "a pre-release survived a floor no label can clear, so the floor is a constant")
+
+
+
+
+def test_the_conflict_weight_is_resolved_from_the_policy():
+    """The summary's weight is the policy's figure times the conflicts counted.
+
+    ghostpin is pinned to a version the index does not carry, so it is a reliable
+    conflict to weigh.
+    """
+    rows = [{"request_id": "req-1", "package": "ghostpin", "source": "probe",
+             "channel": "stable", "constraint": ">=0.0.0", "note": ""}]
+    base, shifted = _policy_probe(
+        rows, lambda pol: pol.setdefault("default", {}).__setitem__("conflict_weight", 17))
+    assert base[1]["conflict_count"] > 0, "the probe reaches no conflict"
+    assert shifted[1]["conflict_count"] == base[1]["conflict_count"]
+    assert shifted[1]["total_conflict_weight"] == base[1]["conflict_count"] * 17, (
+        "the conflict weight was not read from the policy")
+
+
+
+
+def test_the_alt_report_cap_is_resolved_from_the_policy():
+    """The alternates reported per package are capped by the policy's figure."""
+    rows = _load_json(DEFAULT_INPUT)[:400]
+    base, shifted = _policy_probe(
+        rows, lambda pol: pol.setdefault("default", {}).__setitem__("alt_report_cap", 1))
+    widest = max((len(e["alternatives_considered"])
+                  for entries in base[2].values() for e in entries), default=0)
+    assert widest > 1, "no package reports more than one alternate, so the cap is untested"
+    assert all(e["alternatives_count"] <= 1 and len(e["alternatives_considered"]) <= 1
+               for entries in shifted[2].values() for e in entries), (
+        "a package reported more alternates than the policy allows")
+
+
 def test_registry_source_path_affects_output():
     """The registry index is read from its fixed path, not inlined.
 
