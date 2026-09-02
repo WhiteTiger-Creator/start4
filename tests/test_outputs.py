@@ -62,7 +62,18 @@ def _load_json(path: Path):
 
 
 def _load_jsonl(path: Path):
-    return [json.loads(x) for x in path.read_text(encoding="utf-8").splitlines() if x.strip()]
+    """Every line, blank ones included, so nothing is softened on the way in.
+
+    The contract calls for one compact JSON object per line. Skipping blank
+    lines here would have let a plan padded with them parse identically to a
+    correct one and match every digest, so a blank line is a failure rather
+    than something quietly dropped.
+    """
+    text = path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    blank = [n for n, line in enumerate(lines, start=1) if not line.strip()]
+    assert not blank, f"{path.name} carries blank lines at {blank}"
+    return [json.loads(x) for x in lines]
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -1239,8 +1250,11 @@ def test_install_plan_lines_are_all_compact():
     """Every plan line is compact JSON, not just the first one."""
     out_dir = _run_pipeline()[0]
     text = (out_dir / "install_plan.jsonl").read_text(encoding="utf-8")
-    lines = [line for line in text.splitlines() if line.strip()]
-    assert lines
+    assert text.endswith("\n"), "the plan does not end in a newline"
+    lines = text.splitlines()
+    assert lines and all(line.strip() for line in lines), (
+        "the plan carries a blank line, which the contract's one-object-per-line "
+        "serialisation does not allow")
     for number, line in enumerate(lines, start=1):
         assert ": " not in line, f"line {number} is not compact"
         assert json.dumps(json.loads(line), separators=(",", ":")) == line, (
