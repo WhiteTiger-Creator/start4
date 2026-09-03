@@ -196,6 +196,11 @@
   "runtime_budget_seconds": 120,
   "summary_json": {
     "container": "object",
+    "field_notes": {
+      "canonical_request_count": "the requests remaining once the input coercions and the duplicate rule have been applied",
+      "channel_count": "the number of distinct channels resolution.json carries",
+      "resolved_package_count": "every entry in resolution.json counted across all channels -- one per (channel, package) row the resolver emits, whatever its status, so it is neither the number of distinct package names nor the number of entries whose status is 'resolved'"
+    },
     "output_path": "summary.json",
     "required_fields": [
       "schema_version",

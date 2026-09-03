@@ -43,7 +43,7 @@
   "input_bytes_sha256": {
     "registry_replay_journal.json": "cc606210c14dc3638318286929a98ab6d835a66ce97814867d5d7f36e478fd53",
     "registry_snapshot_pre_migration.json": "d5e6e0a86dacd2a275046d2cdca258d7d78fe441c6b969f911b4d143c7d461d5",
-    "report_spec.json": "30ecfa1ca4ba380a4a61591a806a69c14dbb83c02710d3a21961bfcb9f070982"
+    "report_spec.json": "a7490d3bac5f96693f26748bee58a340a22b157a8111ab4150cb88ba280fae44"
   },
   "journal_digest": "d5e93193bd9a573aa373459fcc7c92d001ee4e0e469b24a2ed277cd82dbcf0ed",
   "primary": {

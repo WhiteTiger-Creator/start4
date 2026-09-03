@@ -10,6 +10,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -213,6 +214,37 @@ def _run_agent(argv, cwd: Path):
         reap_candidate_uid()
 
 
+def _stage_input(src: Path, dst: Path) -> None:
+    """Copy `src` to `dst` as a regular file, never through a link.
+
+    The default input is /app/data/requests.json, which the agent may write, and
+    staging ran as root. shutil.copy follows the source link, so a symlink planted
+    at that path would have been read with root's privileges and laid down at 0644
+    inside the candidate's own work area -- which is how the held-out fixtures under
+    /tests would have reached the graded program. O_NOFOLLOW refuses the link at the
+    final component and the fstat refuses anything that is not a regular file.
+    """
+    try:
+        handle = os.open(str(src), os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError as exc:
+        raise AssertionError(
+            f"{src} could not be staged as a regular file: {exc}") from exc
+    try:
+        info = os.fstat(handle)
+        assert stat.S_ISREG(info.st_mode), (
+            f"{src} is not a regular file, so it is not staged")
+        payload = b""
+        while True:
+            chunk = os.read(handle, 1 << 20)
+            if not chunk:
+                break
+            payload += chunk
+    finally:
+        os.close(handle)
+    dst.write_bytes(payload)
+    os.chmod(dst, 0o644)
+
+
 def _run_pipeline(script_path: Path = WORKFLOW_PATH, input_path: Path = DEFAULT_INPUT):
     """Run the submitted resolver once and hand back the three artifacts it wrote."""
     work = _candidate_dir()
@@ -220,8 +252,7 @@ def _run_pipeline(script_path: Path = WORKFLOW_PATH, input_path: Path = DEFAULT_
     out_dir.mkdir(parents=True, exist_ok=True)
     os.chmod(out_dir, 0o777)
     staged = work / "requests.json"
-    shutil.copy(str(input_path), str(staged))
-    os.chmod(staged, 0o644)
+    _stage_input(Path(input_path), staged)
     result = _run_agent(
         [sys.executable, str(script_path), "--input", str(staged), "--output-dir", str(out_dir)],
         cwd=work,
@@ -1131,8 +1162,12 @@ def _dynamic_execution_offences(source: str) -> list[str]:
     # Resolve rebindings first, so a call through one is recognised wherever it sits.
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
+            # the module matters as much as the name: `compile` is a builtin here
+            # but it is also re.compile, and an ordinary resolver written with
+            # `from re import compile` was being failed over a rule nothing states
+            from_builtins = bool(node.module) and node.module.split(".")[0] == "builtins"
             for alias in node.names:
-                if alias.name in BANNED_DYNAMIC:
+                if from_builtins and alias.name in BANNED_DYNAMIC:
                     aliases.add(alias.asname or alias.name)
         elif isinstance(node, ast.Assign):
             source_name = None
@@ -1379,7 +1414,17 @@ _COERCION_REGISTRY = {
     "crypto-box": [
         {"version": "1.0.0", "yanked": False, "deps": []},
         {"version": "1.5.0", "yanked": False, "deps": []},
+        # 1.9.0 sits between the compatible-release bands the two spellings of
+        # '~=' name, so the three-component form has something to exclude
+        {"version": "1.9.0", "yanked": False, "deps": []},
         {"version": "2.0.0", "yanked": False, "deps": []},
+    ],
+    # #REG-7104 makes the +N suffix precedence-significant; nothing in the graded
+    # registry or either request set carries one, so the rule is pinned here
+    "buildmeta": [
+        {"version": "1.0.0", "yanked": False, "deps": []},
+        {"version": "1.0.0+build3", "yanked": False, "deps": []},
+        {"version": "1.0.0+build7", "yanked": False, "deps": []},
     ],
     "unknown": [{"version": "1.0.0", "yanked": False, "deps": []}],
 }
@@ -1415,6 +1460,39 @@ def _staged_run(rows, registry, policy_patch=None):
     finally:
         REGISTRY_PATH.write_text(reg_original, encoding="utf-8")
         POLICY_PATH.write_text(pol_original, encoding="utf-8")
+
+
+def test_staging_the_run_input_does_not_follow_a_planted_link():
+    """The default input sits on an agent-writable path and staging runs as root.
+
+    /app/data/requests.json is the resolver's own input and the agent may replace
+    it. Staging used shutil.copy, which reads through a symlink, so a link planted
+    there pointed root at any file it named -- the held-out fixtures under /tests
+    included -- and laid the contents down at 0644 inside the candidate's work
+    area, where the graded program reads it. Staging now refuses anything that is
+    not a regular file, and this plants the link to prove it.
+    """
+    sentinel = Path("/tests/fixtures/expected_report.json")
+    if not sentinel.exists():
+        sentinel = SPEC_PATH
+    original = DEFAULT_INPUT.read_bytes()
+    mode = DEFAULT_INPUT.stat().st_mode & 0o7777
+    try:
+        DEFAULT_INPUT.unlink()
+        DEFAULT_INPUT.symlink_to(sentinel)
+        work = _candidate_dir()
+        staged = work / "requests.json"
+        with pytest.raises(AssertionError):
+            _stage_input(DEFAULT_INPUT, staged)
+        assert not staged.exists(), (
+            "the planted link was staged anyway, so its target is now readable "
+            "at the path the graded program is handed")
+    finally:
+        if DEFAULT_INPUT.is_symlink() or DEFAULT_INPUT.exists():
+            DEFAULT_INPUT.unlink()
+        DEFAULT_INPUT.write_bytes(original)
+        os.chmod(DEFAULT_INPUT, mode)
+    assert DEFAULT_INPUT.read_bytes() == original
 
 
 def test_stale_files_are_cleared_from_the_output_directory(tmp_path: Path):
@@ -1498,6 +1576,66 @@ def test_every_documented_constraint_operator_selects_as_ruled(constraint, expec
     entry = resolution["crypto-box"][0]
     assert entry["status"] == "resolved", (constraint, entry)
     assert entry["chosen_version"] == expected, (constraint, entry["chosen_version"])
+
+
+def test_the_three_component_compatible_release_bounds_at_the_next_minor():
+    """#REG-7106 gives '~=' two bands and the suite only ever exercised one.
+
+    '~=X.Y' is >=X.Y.0,<(X+1).0.0 and '~=X.Y.Z' is >=X.Y.Z,<X.(Y+1).0. Only the
+    two-component spelling had a case, so a resolver that read both as the wider
+    band passed everything. Against a registry carrying 1.9.0, '~=1.7.0' admits
+    nothing under the governed reading and takes 1.9.0 under the wide one.
+    """
+    rows = [{"request_id": "tilde-narrow", "package": "crypto-box", "source": "app",
+             "channel": "stable", "constraint": "~=1.7.0", "note": ""}]
+    _, _, resolution, _ = _staged_registry_run(rows)
+    entry = resolution["crypto-box"][0]
+    assert entry["chosen_version"] is None, (
+        "'~=1.7.0' bounds at 1.8.0, so 1.9.0 does not satisfy it; the resolver "
+        f"widened the band to the next major and took {entry['chosen_version']}")
+    assert entry["status"] == "conflict", entry["status"]
+
+    # and the band is a real one rather than a blanket refusal of the spelling
+    rows = [{"request_id": "tilde-hit", "package": "crypto-box", "source": "app",
+             "channel": "stable", "constraint": "~=1.9.0", "note": ""}]
+    _, _, resolution, _ = _staged_registry_run(rows)
+    entry = resolution["crypto-box"][0]
+    assert entry["status"] == "resolved", entry
+    assert entry["chosen_version"] == "1.9.0", entry["chosen_version"]
+
+
+def test_build_metadata_is_the_final_tiebreaker_the_log_names():
+    """#REG-7104 deviates from semver and nothing in the graded data reaches it.
+
+    No version string or constraint in the shipped registry, in either request set
+    or in any staged fixture carried a +N suffix, so a resolver on the superseded
+    #REG-7004 reading -- build metadata ignored, exactly like semver -- matched
+    every sealed digest. Here 1.0.0, 1.0.0+build3 and 1.0.0+build7 are three
+    distinct versions in ascending order, and under the semver reading they are
+    one version compared three times, so nothing is strictly greater than 1.0.0.
+    """
+    rows = [{"request_id": "bm-above-plain", "package": "buildmeta", "source": "app",
+             "channel": "stable", "constraint": ">1.0.0", "note": ""}]
+    _, _, resolution, _ = _staged_registry_run(rows)
+    entry = resolution["buildmeta"][0]
+    assert entry["status"] == "resolved", (
+        "nothing outranked 1.0.0, so build metadata was dropped from the ordering")
+    assert entry["chosen_version"] == "1.0.0+build3", entry["chosen_version"]
+
+    rows = [{"request_id": "bm-above-build3", "package": "buildmeta", "source": "app",
+             "channel": "stable", "constraint": ">1.0.0+build7", "note": ""}]
+    _, _, resolution, _ = _staged_registry_run(rows)
+    entry = resolution["buildmeta"][0]
+    assert entry["chosen_version"] is None, (
+        "1.0.0+build7 is the greatest release of this package, so nothing is "
+        f"above it; the resolver took {entry['chosen_version']}")
+
+    rows = [{"request_id": "bm-exact", "package": "buildmeta", "source": "app",
+             "channel": "stable", "constraint": "==1.0.0+build7", "note": ""}]
+    _, _, resolution, _ = _staged_registry_run(rows)
+    entry = resolution["buildmeta"][0]
+    assert entry["status"] == "resolved", entry
+    assert entry["chosen_version"] == "1.0.0+build7", entry["chosen_version"]
 
 
 def test_the_default_selection_takes_the_lowest_satisfying_version():
