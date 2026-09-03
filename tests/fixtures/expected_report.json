@@ -40,6 +40,11 @@
     }
   },
   "broken_pipeline_sha256": "8cf92539557251fdefe095d8e13e6ba0d93130997dcf6e05a70ff379fdacafb5",
+  "input_bytes_sha256": {
+    "registry_replay_journal.json": "cc606210c14dc3638318286929a98ab6d835a66ce97814867d5d7f36e478fd53",
+    "registry_snapshot_pre_migration.json": "d5e6e0a86dacd2a275046d2cdca258d7d78fe441c6b969f911b4d143c7d461d5",
+    "report_spec.json": "30ecfa1ca4ba380a4a61591a806a69c14dbb83c02710d3a21961bfcb9f070982"
+  },
   "journal_digest": "d5e93193bd9a573aa373459fcc7c92d001ee4e0e469b24a2ed277cd82dbcf0ed",
   "primary": {
     "plan_digest": "05e1c411be1a3b8f5201c384f03ff1fea72bf1859512f5e937e7624f5e7c428c",

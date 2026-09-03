@@ -261,6 +261,20 @@ def small_outputs():
 # Step 1: the authoritative registry index must be rebuilt before resolving
 # --------------------------------------------------------------------------
 def test_recovery_sources_are_intact():
+    """instruction.md says these come back byte for byte, so the bytes are checked.
+
+    The parsed digests below normalise whitespace and key order away, so a run
+    that reformatted a source in place -- re-dumping it at a different indent or
+    with sorted keys -- satisfied them while breaking the stated promise. The raw
+    hashes close that; the parsed comparison stays as a second, redundant reading
+    of the same requirement.
+    """
+    raw = FIXTURE["input_bytes_sha256"]
+    assert hashlib.sha256(SNAPSHOT_PATH.read_bytes()).hexdigest() == \
+        raw["registry_snapshot_pre_migration.json"]
+    assert hashlib.sha256(JOURNAL_PATH.read_bytes()).hexdigest() == \
+        raw["registry_replay_journal.json"]
+    assert hashlib.sha256(SPEC_PATH.read_bytes()).hexdigest() == raw["report_spec.json"]
     assert _digest(_load_json(SNAPSHOT_PATH)) == FIXTURE["snapshot_digest"]
     assert _digest(_load_json(JOURNAL_PATH)) == FIXTURE["journal_digest"]
 
@@ -1049,17 +1063,28 @@ def _runtime_loading_offences(source: str) -> set[str]:
     The name is caught wherever it is spelled -- called directly, reached through
     an attribute, rebound to something else, or passed as a string to getattr --
     because each of those reaches the same loader and none of them is an import
-    statement.
+    statement. A loader name appearing only inside prose, such as a docstring or
+    an error message, is not an offence: the instruction bans dynamically
+    generated and executed code, not the word.
     """
     offences: set[str] = set()
+    watched = _LOADER_NAMES | _LOADER_HOLDERS
     for node in ast.walk(ast.parse(source)):
-        if isinstance(node, ast.Name) and node.id in _LOADER_NAMES | _LOADER_HOLDERS:
+        if isinstance(node, ast.Name) and node.id in watched:
             offences.add(node.id)
         elif isinstance(node, ast.Attribute) and node.attr in _LOADER_NAMES:
             offences.add(node.attr)
-        elif (isinstance(node, ast.Constant) and isinstance(node.value, str)
-              and node.value in _LOADER_NAMES | _LOADER_HOLDERS):
-            offences.add(node.value)
+        elif isinstance(node, ast.Call):
+            # A loader name as a STRING counts only where it is being passed to
+            # a call -- getattr(builtins, "__import__") and its like. Matching
+            # every string constant also failed a resolver whose docstring or
+            # error message merely mentioned importlib, which the instruction
+            # does not forbid; the holder in that attack is itself a Name and is
+            # caught above regardless.
+            for arg in list(node.args) + [k.value for k in node.keywords]:
+                if (isinstance(arg, ast.Constant) and isinstance(arg.value, str)
+                        and arg.value in watched):
+                    offences.add(arg.value)
     return offences
 
 
@@ -1659,6 +1684,58 @@ def test_a_reselect_reports_the_alternatives_that_are_still_admissible():
         "the entry reports alternatives the tightened constraints no longer admit",
         sorted(reported),
     )
+
+
+def test_a_frozen_entry_reports_alternatives_against_the_final_constraints():
+    """#REG-7160 holds the version, not the whole entry.
+
+    "Only the version is held: every other field the entry carries is still read
+    off #REG-7156 against the constraints AS THEY FINALLY STAND." The reference
+    returned a frozen entry untouched on every later pass, so a constraint that
+    arrived after the freeze never narrowed its alternatives and the entry went
+    out naming versions the final constraints no longer admit.
+
+    Constraints accumulate through dependency edges, so the tightening has to be
+    discovered rather than requested: each link in the chain below is found a
+    pass later than the one before, which is what walks corelib past its cap of
+    one and then narrows what is admissible afterwards.
+    """
+    registry = {
+        "corelib": [
+            {"version": "1.0.0", "yanked": False, "deps": []},
+            {"version": "2.0.0", "yanked": False, "deps": []},
+            {"version": "3.0.0", "yanked": False, "deps": []},
+            {"version": "4.0.0", "yanked": False, "deps": []},
+        ],
+        # root -> lvl1 -> lvl2 -> lvl3, each also constraining corelib, so the
+        # constraints land on successive passes
+        "root": [{"version": "1.0.0", "yanked": False, "deps": [
+            {"package": "corelib", "constraint": ">=1.0.0"},
+            {"package": "lvl1", "constraint": ">=1.0.0"}]}],
+        "lvl1": [{"version": "1.0.0", "yanked": False, "deps": [
+            {"package": "corelib", "constraint": ">=2.0.0"},
+            {"package": "lvl2", "constraint": ">=1.0.0"}]}],
+        "lvl2": [{"version": "1.0.0", "yanked": False, "deps": [
+            {"package": "corelib", "constraint": ">=3.0.0"},
+            {"package": "lvl3", "constraint": ">=1.0.0"}]}],
+        "lvl3": [{"version": "1.0.0", "yanked": False, "deps": [
+            {"package": "corelib", "constraint": "<=3.0.0"}]}],
+    }
+    rows = [{"request_id": "r-1", "package": "root", "source": "app",
+             "channel": "stable", "constraint": ">=1.0.0", "note": ""}]
+    _, _, resolution, _ = _staged_run(rows, registry)
+    entry = resolution["corelib"][0]
+    assert entry["provenance"] == "reselect-cap-exceeded", (
+        "corelib did not freeze, so this test is not exercising #REG-7160", entry)
+    # the constraints as they finally stand are >=3.0.0 and <=3.0.0, so 3.0.0 is
+    # the only admissible version and 4.0.0 -- admissible when the freeze
+    # happened -- is not an alternative any more
+    reported = set(entry["alternatives_considered"])
+    assert "4.0.0" not in reported, (
+        "the frozen entry still names 4.0.0, which the constraint discovered "
+        "after the freeze no longer admits, so its list was fixed at that moment")
+    assert reported <= {"3.0.0"}, sorted(reported)
+
 
 
 def test_policy_package_names_are_canonicalised_before_they_are_matched():

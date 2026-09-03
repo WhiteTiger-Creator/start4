@@ -478,7 +478,19 @@ def resolve_channel(
             clauses = constraints.get(pkg, [])
             cur = ledger.get(pkg)
             if cur is not None and cur.get("frozen"):
-                res = cur
+                # #REG-7160 holds the VERSION, not the whole entry: every other
+                # field is read off the constraints AS THEY FINALLY STAND. A
+                # constraint arriving after the freeze still narrows what is
+                # admissible, so the alternatives are recomputed on each pass --
+                # left alone they named the set admissible when the freeze
+                # happened, which is the earlier reading the decision rules out.
+                res = dict(cur)
+                res["candidates"] = [
+                    e["version"] for e in candidate_versions(
+                        pkg, clauses, channel, registry, policy_data)]
+                if res["candidates"] != cur.get("candidates"):
+                    changed = True
+                ledger[pkg] = res
             else:
                 fresh = select_entry(pkg, clauses, channel, registry, policy_data)
                 cap = resolve_policy(pkg, policy_data)["reselect_cap"]
