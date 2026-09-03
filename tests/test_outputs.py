@@ -196,13 +196,17 @@ def _candidate_dir() -> Path:
 
 
 def _run_agent(argv, cwd: Path):
-    # No subprocess timeout: nothing here should pass or fail on how long the
-    # grading machine took. A submission that never returns is stopped by the
-    # verifier's own budget, not by a stopwatch inside an assertion.
+    """Run the submitted resolver under the budget the contract publishes.
+
+    instruction.md and /app/docs/report_spec.json both state 120 seconds, so the
+    figure is enforced here rather than merely published: a run that overruns is
+    killed and the suite fails on it. The value is read from the contract so the
+    number an agent can look up and the number in force cannot drift apart.
+    """
     try:
         return subprocess.run(
             _SETPRIV + argv, check=True, capture_output=True, text=True, cwd=str(cwd),
-            env=dict(_CANDIDATE_ENV),
+            env=dict(_CANDIDATE_ENV), timeout=int(RUNTIME_BUDGET_SEC),
             preexec_fn=_apply_rlimits,
         )
     finally:
@@ -557,9 +561,16 @@ def test_cli_defaults_work_and_match_explicit_run(primary_outputs):
     assert sorted(q.name for q in default_dir.iterdir()) == [
         "install_plan.jsonl", "resolution.json", "summary.json"], (
         "the run did not clear what an earlier run left in the output directory")
-    assert _load_json(default_dir / "summary.json") == primary_outputs[1]
-    assert _digest(_load_json(default_dir / "resolution.json")) == _digest(primary_outputs[2])
-    assert _digest(_load_jsonl(default_dir / "install_plan.jsonl")) == _digest(primary_outputs[3])
+    # byte for byte against the explicit run's own files rather than their parsed
+    # shape: a default run emitting the same values at a different indent, key
+    # order or line ending passed a structural comparison that could not see it
+    explicit_dir = primary_outputs[0]
+    for name in ("summary.json", "resolution.json", "install_plan.jsonl"):
+        produced = hashlib.sha256((default_dir / name).read_bytes()).hexdigest()
+        expected = hashlib.sha256((explicit_dir / name).read_bytes()).hexdigest()
+        assert produced == expected, (
+            f"{name} from the no-argument run differs byte for byte from the "
+            "explicit run's")
 
 
 def test_submitted_program_runs_unprivileged_and_cannot_write_reward():
@@ -583,6 +594,7 @@ def test_submitted_program_runs_unprivileged_and_cannot_write_reward():
     result = subprocess.run(
         _SETPRIV + [sys.executable, str(probe)], capture_output=True, text=True,
         cwd=str(work), env=dict(_CANDIDATE_ENV), check=False,
+        timeout=int(RUNTIME_BUDGET_SEC),
         preexec_fn=_apply_rlimits,
     )
     reap_candidate_uid()
@@ -823,6 +835,49 @@ def test_the_alt_report_cap_is_resolved_from_the_policy():
     assert all(e["alternatives_count"] <= 1 and len(e["alternatives_considered"]) <= 1
                for entries in shifted[2].values() for e in entries), (
         "a package reported more alternates than the policy allows")
+
+
+def test_a_package_named_default_cannot_reach_the_global_limits():
+    """The global limits come from `default` alone, never through a package name.
+
+    The plan capacity cap and the conflict weight are policy-wide figures. Reading
+    them through the per-package resolver meant they arrived under a name that
+    canonicalises to "default", which is exactly what a package_overrides entry
+    written default, Default or DEFAULT produces -- so such an entry replaced a
+    global limit that has nothing to do with that package. Each spelling is
+    planted here and neither figure may move.
+    """
+    rows = [{"request_id": "req-1", "package": "netcore", "source": "probe",
+             "channel": "stable", "constraint": ">=0.0.0", "note": ""}]
+    base = _run_requests(rows)
+    original = POLICY_PATH.read_text(encoding="utf-8")
+    try:
+        for spelling in ("default", "Default", "DEFAULT", "__default__"):
+            policy = json.loads(original)
+            policy.setdefault("package_overrides", {})[spelling] = {
+                "plan_capacity_cap": 1, "conflict_weight": 999}
+            POLICY_PATH.write_text(json.dumps(policy, indent=2) + "\n", encoding="utf-8")
+            _, summary, _, plan = _run_requests(rows)
+            assert summary["planned_install_count"] == base[1]["planned_install_count"], (
+                f"a package override written {spelling!r} changed the plan capacity "
+                "cap, so the global limit is being read through a package name")
+            assert summary["total_conflict_weight"] == base[1]["total_conflict_weight"], (
+                f"a package override written {spelling!r} changed the conflict weight")
+            assert len(plan) == len(base[3])
+    finally:
+        POLICY_PATH.write_text(original, encoding="utf-8")
+
+    # and the collision is real: every spelling above lands on the same key a
+    # package override uses, so this test is not exercising an unreachable case
+    assert len({_canon_probe(s) for s in ("default", "Default", "DEFAULT", "__default__")}) == 1
+
+
+def _canon_probe(value: str) -> str:
+    """The contract's package coercion, applied here only to prove the collision."""
+    import re as _re
+    s = _re.sub(r"[_.]+", "-", str(value).strip().lower())
+    s = _re.sub(r"-+", "-", s).strip("-")
+    return s or "unknown"
 
 
 def test_registry_source_path_affects_output():

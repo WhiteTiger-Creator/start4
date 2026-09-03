@@ -158,6 +158,8 @@
     "summary_json": "summary.json"
   },
   "policy_source": {
+    "global_limits": "plan_capacity_cap and conflict_weight are policy-wide and are read from default alone; no package_overrides entry can change them, whatever it is named",
+    "name_canonicalisation": "package and channel names are canonicalised wherever they carry identity in this file, by the same coercion field_types states for the package field: the keys of package_overrides, the channel keys and the package keys of pins, and the entries of yanked_exemptions and selection_overrides. A policy written Crypto_Box therefore matches the package canonicalised as crypto-box. The FIELD names inside default and inside a package_overrides entry -- plan_capacity_cap, conflict_weight and the rest -- are taken literally and are not canonicalised, and neither are the version strings in pins.",
     "path": "/app/data/resolution_policy.json",
     "shape": "{\"default\": {field: int, ...}, \"package_overrides\": {package: {field: int, ...}, ...}, \"pins\": {channel: {package: version}}, \"yanked_exemptions\": [package, ...], \"selection_overrides\": [package, ...], \"channel_priorities\": {channel: {\"allow_prerelease\": bool, \"priority\": int}}}"
   },

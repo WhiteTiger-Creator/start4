@@ -281,6 +281,22 @@ def _coerce_int(value: object, default: int = 0) -> int:
             return default
 
 
+def resolve_global(policy_data: dict) -> dict:
+    """The policy's global limits, taken from `default` and nothing else.
+
+    These used to be read through resolve_policy under a sentinel package name,
+    which canonicalised onto the same key a package_overrides entry written
+    default, Default or DEFAULT produces -- so such an entry silently replaced a
+    global limit. Nothing here consults package_overrides at all, so no package
+    name can reach these values.
+    """
+    resolved = dict(POLICY_BASELINE)
+    for field, val in policy_data.get("default", {}).items():
+        if field in resolved:
+            resolved[field] = _coerce_int(val)
+    return resolved
+
+
 def resolve_policy(package: str, policy_data: dict) -> dict:
     resolved = dict(POLICY_BASELINE)
     for field, val in policy_data.get("default", {}).items():
@@ -719,7 +735,7 @@ def run(input_path: str, output_dir: str) -> None:
             all_entries.append(entry)
 
     # --- install plan: topological order per channel, then capacity cap ---
-    plan_cap = resolve_policy("__default__", policy_data)["plan_capacity_cap"]
+    plan_cap = resolve_global(policy_data)["plan_capacity_cap"]
     ordered_rows: list[dict] = []
     cyclic_packages: list[str] = []
     # Index the entries once; scanning the whole entry list per package is
@@ -771,7 +787,7 @@ def run(input_path: str, output_dir: str) -> None:
     status_counts = {status: 0 for status in STATUS_ORDER}
     for entry in all_entries:
         status_counts[entry["status"]] += 1
-    conflict_weight = resolve_policy("__default__", policy_data)["conflict_weight"]
+    conflict_weight = resolve_global(policy_data)["conflict_weight"]
 
     def pmax(field: str) -> int:
         return max((r[field] for r in plan_rows), default=0)
