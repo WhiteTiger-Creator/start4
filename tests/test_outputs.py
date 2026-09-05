@@ -56,6 +56,9 @@ def _requests(pkgs, channel="stable", constraint=">=1.0.0"):
 
 
 SMALL_ROOTS = ["pkg-03-0000", "pkg-03-0001", "pkg-02-0002"]
+# the index the failed migration left, kept verifier-side so the dependence of
+# step two on step one can be shown against the real thing rather than a stand-in
+TRUNCATED_INDEX_PATH = Path("/tests/fixtures/shipped_truncated_index.json")
 
 
 def _load_json(path: Path):
@@ -331,9 +334,48 @@ def test_shipped_truncated_index_was_not_left_in_place():
     assert _digest(_load_json(REGISTRY_PATH)) != FIXTURE["shipped_truncated_digest"]
 
 
-def test_resolver_output_depends_on_the_recovered_index(small_outputs):
-    """Resolving against the shipped truncated index cannot give the graded answer."""
-    assert small_outputs[1]["resolved_package_count"] > 0
+def test_resolver_output_depends_on_the_recovered_index():
+    """Resolving against the shipped truncated index cannot give the graded answer.
+
+    The body used to assert only that the run resolved something, which every run
+    does, so the dependence this test is named for went unchecked. The file the
+    migration left is kept here as a sealed fixture -- its parsed digest is
+    checked against the seal below, so it is provably the shipped bytes and not
+    some other degraded index -- and one request set is resolved against both.
+
+    The roots are chosen as packages the recovered index carries and the shipped
+    one does not, worked out from the two files rather than written down: most of
+    the registry resolves the same either way, so a probe that happened to miss
+    the truncation would pass while proving nothing.
+    """
+    truncated = _load_json(TRUNCATED_INDEX_PATH)
+    assert _digest(truncated) == FIXTURE["shipped_truncated_digest"], (
+        "the staged index is not the file the migration actually left behind")
+    recovered = _load_json(REGISTRY_PATH)
+    assert len(truncated) < len(recovered), (
+        "the shipped index is not short of the recovered one, so this proves nothing")
+
+    lost = sorted(set(recovered) - set(truncated))
+    assert len(lost) >= 3, "the truncation dropped almost nothing"
+    rows = _requests(lost[:3])
+
+    original = REGISTRY_PATH.read_text(encoding="utf-8")
+    baseline = _run_requests(rows)
+    try:
+        REGISTRY_PATH.write_text(
+            json.dumps(truncated, separators=(",", ":")) + "\n", encoding="utf-8")
+        off_truncated = _run_requests(rows)
+    finally:
+        REGISTRY_PATH.write_text(original, encoding="utf-8")
+
+    assert off_truncated[1] != baseline[1], (
+        "the same request set gave the same summary off the truncated index, so "
+        "the resolver is not reading the index it was handed")
+    assert _digest(off_truncated[2]) != _digest(baseline[2])
+    # and the difference is the truncation itself: these packages resolve off the
+    # rebuilt index and cannot be resolved off the one the migration left
+    assert baseline[1]["conflict_count"] == 0, baseline[1]
+    assert off_truncated[1]["conflict_count"] == len(rows), off_truncated[1]
 
 
 # --------------------------------------------------------------------------
