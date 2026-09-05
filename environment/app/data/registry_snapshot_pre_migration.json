@@ -975399,5 +975399,61 @@
       "version": "3.0.1",
       "yanked": false
     }
+  ],
+  "pkg-buildmeta": [
+    {
+      "deps": [],
+      "version": "1.0.0",
+      "yanked": false
+    },
+    {
+      "deps": [],
+      "version": "1.0.0+build3",
+      "yanked": false
+    },
+    {
+      "deps": [],
+      "version": "1.0.0+build7",
+      "yanked": false
+    }
+  ],
+  "pkg-compatband": [
+    {
+      "deps": [],
+      "version": "1.5.0",
+      "yanked": false
+    },
+    {
+      "deps": [],
+      "version": "1.6.0",
+      "yanked": false
+    },
+    {
+      "deps": [],
+      "version": "1.9.0",
+      "yanked": false
+    },
+    {
+      "deps": [],
+      "version": "2.0.0",
+      "yanked": false
+    }
+  ],
+  "pkg-operators": [
+    {
+      "deps": [],
+      "version": "1.0.0",
+      "yanked": false
+    },
+    {
+      "deps": [],
+      "version": "1.5.0",
+      "yanked": false
+    },
+    {
+      "deps": [],
+      "version": "2.0.0",
+      "yanked": false
+    }
   ]
 }

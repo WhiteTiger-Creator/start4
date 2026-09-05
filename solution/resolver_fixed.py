@@ -201,7 +201,11 @@ def canonicalize_requests(raw_rows: list[dict]) -> list[dict]:
                 "package": canon_name(row.get("package", "")),
                 "source": canon_name(row.get("source", "")),
                 "channel": canon_name(row.get("channel", "stable")),
-                "constraint": collapse_ws(row.get("constraint", "*")) or "*",
+                # The contract names "" and "*" as two ANY TOKENS and states one
+                # coercion, the whitespace collapse. Rewriting "" to "*" invented a
+                # second one and put a text in satisfied_constraints that the
+                # request never carried; both still mean ANY to the selection.
+                "constraint": collapse_ws(row.get("constraint", "")),
                 "note": collapse_ws(row.get("note", "")),
             }
         )
@@ -564,7 +568,7 @@ def resolve_channel(
                         constraints.setdefault(dpkg, [])
                         clause_text.setdefault(dpkg, set())
                         changed = True
-                    ctext = dep["constraint"] or "*"
+                    ctext = dep["constraint"]   # kept as written; "" is an ANY token
                     if ctext not in clause_text.setdefault(dpkg, set()):
                         clause_text[dpkg].add(ctext)
                         constraints.setdefault(dpkg, []).extend(parse_constraint(ctext))
@@ -709,7 +713,7 @@ def run(input_path: str, output_dir: str) -> None:
         chan = channels.setdefault(row["channel"], {"clauses": {}, "text": {}})
         chan["clauses"].setdefault(row["package"], [])
         chan["text"].setdefault(row["package"], set())
-        ctext = row["constraint"] or "*"
+        ctext = row["constraint"]   # kept as written; "" is an ANY token
         if ctext not in chan["text"][row["package"]]:
             chan["text"][row["package"]].add(ctext)
             chan["clauses"][row["package"]].extend(parse_constraint(ctext))

@@ -42,15 +42,15 @@
   "broken_pipeline_sha256": "8cf92539557251fdefe095d8e13e6ba0d93130997dcf6e05a70ff379fdacafb5",
   "input_bytes_sha256": {
     "registry_replay_journal.json": "cc606210c14dc3638318286929a98ab6d835a66ce97814867d5d7f36e478fd53",
-    "registry_snapshot_pre_migration.json": "d5e6e0a86dacd2a275046d2cdca258d7d78fe441c6b969f911b4d143c7d461d5",
+    "registry_snapshot_pre_migration.json": "3786a2410d263581110f0e7281bf615124d96197969822b2337aed0282b22b19",
     "report_spec.json": "a7490d3bac5f96693f26748bee58a340a22b157a8111ab4150cb88ba280fae44"
   },
   "journal_digest": "d5e93193bd9a573aa373459fcc7c92d001ee4e0e469b24a2ed277cd82dbcf0ed",
   "primary": {
     "plan_digest": "05e1c411be1a3b8f5201c384f03ff1fea72bf1859512f5e937e7624f5e7c428c",
-    "resolution_digest": "2ac44f463198c3cb7f68f8e2b767ac88fa1a28961a8349f62c6b9ca0d405c8ce",
+    "resolution_digest": "8ce8dac34afcc9c8e7baedd5de97aa2e1ecc8431f9a8bd824d39ced69c3383f1",
     "summary": {
-      "canonical_request_count": 849,
+      "canonical_request_count": 852,
       "channel_count": 2,
       "conflict_count": 2,
       "cyclic_package_count": 12,
@@ -73,23 +73,23 @@
       "max_reach_count": 18216,
       "max_reselect_count": 0,
       "planned_install_count": 6,
-      "raw_request_count": 849,
-      "resolved_package_count": 43792,
+      "raw_request_count": 853,
+      "resolved_package_count": 43795,
       "schema_version": "reg-resolve-v1",
       "status_counts": {
         "conflict": 2,
         "pinned": 1,
-        "resolved": 43789
+        "resolved": 43792
       },
-      "total_alternatives_considered": 58335,
+      "total_alternatives_considered": 58336,
       "total_conflict_weight": 10,
       "total_reselects": 2,
-      "unique_request_ids": 849
+      "unique_request_ids": 853
     }
   },
-  "recovered_index_digest": "bf44a73b0c54b60e669e2345ce38cdb518679ca31156a838a8fd93a8b904e235",
-  "recovered_package_count": 24012,
-  "recovered_release_count": 56016,
+  "recovered_index_digest": "dc16fdec56f7c8d9a7425f5b69102e928e30ec104c193a31a009b8e833716676",
+  "recovered_package_count": 24015,
+  "recovered_release_count": 56026,
   "shipped_truncated_digest": "d75bdf0e08f7e29358edba97d7954ecb7226dc810b6496f0744baac4a02e02ba",
-  "snapshot_digest": "42ac8cb7f4412354ecc800bd1ca91d7d0986f71084b0b7f4747851b5dd9652a3"
+  "snapshot_digest": "54a829fbcbf88b91600a130640b4dad79c6463cf34eb63f71928be5d4bf79f66"
 }

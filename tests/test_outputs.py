@@ -311,6 +311,7 @@ def test_recovery_sources_are_intact():
 
 
 def test_registry_index_recovered():
+    """The rebuilt registry index matches the governed replay exactly, by count and digest."""
     index = _load_json(REGISTRY_PATH)
     assert len(index) == FIXTURE["recovered_package_count"]
     assert sum(len(v) for v in index.values()) == FIXTURE["recovered_release_count"]
@@ -318,6 +319,7 @@ def test_registry_index_recovered():
 
 
 def test_recovered_records_carry_no_journal_bookkeeping():
+    """The migrator's own fields never survive the replay into the rebuilt index."""
     index = _load_json(REGISTRY_PATH)
     for rows in list(index.values())[:400]:
         for record in rows:
@@ -325,6 +327,7 @@ def test_recovered_records_carry_no_journal_bookkeeping():
 
 
 def test_shipped_truncated_index_was_not_left_in_place():
+    """The truncated file the migration left is not what the run was graded on."""
     assert _digest(_load_json(REGISTRY_PATH)) != FIXTURE["shipped_truncated_digest"]
 
 
@@ -337,30 +340,36 @@ def test_resolver_output_depends_on_the_recovered_index(small_outputs):
 # Graded outputs
 # --------------------------------------------------------------------------
 def test_cli_exists():
+    """The resolver is present at its contracted path and runs."""
     assert WORKFLOW_PATH.is_file()
     text = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert "--input" in text and "--output-dir" in text
 
 
 def test_output_dir_contains_exactly_three_files(primary_outputs):
+    """A run leaves the three contracted artifacts in the output directory and nothing else."""
     assert sorted(p.name for p in primary_outputs[0].iterdir()) == [
         "install_plan.jsonl", "resolution.json", "summary.json",
     ]
 
 
 def test_primary_summary_matches_fixture(primary_outputs):
+    """Every summary field matches the sealed reference run on the graded request set."""
     assert primary_outputs[1] == FIXTURE["primary"]["summary"]
 
 
 def test_primary_resolution_matches_fixture(primary_outputs):
+    """The resolution matches the sealed digest on the graded request set."""
     assert _digest(primary_outputs[2]) == FIXTURE["primary"]["resolution_digest"]
 
 
 def test_primary_plan_matches_fixture(primary_outputs):
+    """The install plan matches the sealed digest on the graded request set."""
     assert _digest(primary_outputs[3]) == FIXTURE["primary"]["plan_digest"]
 
 
 def test_alternate_request_set_matches_fixture(alternate_outputs):
+    """A held-out request set the agent never sees produces the sealed result."""
     _, summary, resolution, plan = alternate_outputs
     assert summary == FIXTURE["alternate"]["summary"]
     assert _digest(resolution) == FIXTURE["alternate"]["resolution_digest"]
@@ -368,6 +377,7 @@ def test_alternate_request_set_matches_fixture(alternate_outputs):
 
 
 def test_runtime_budget_is_stated_in_the_contract():
+    """The budget the suite holds a run to is the one the contract publishes."""
     assert float(SPEC["runtime_budget_seconds"]) == RUNTIME_BUDGET_SEC
 
 
@@ -375,6 +385,7 @@ def test_runtime_budget_is_stated_in_the_contract():
 # Reach reporting (#REG-7172)
 # --------------------------------------------------------------------------
 def test_reach_counts_are_reported_and_vary(primary_outputs):
+    """reach_count is reported on every entry and is not a constant."""
     resolution = primary_outputs[2]
     counts = [e["reach_count"] for rows in resolution.values() for e in rows]
     assert counts
@@ -384,6 +395,7 @@ def test_reach_counts_are_reported_and_vary(primary_outputs):
 
 
 def test_reach_is_bounded_by_the_resolved_set(primary_outputs):
+    """No entry claims a reach larger than the resolved set it was computed over."""
     _, summary, resolution, _ = primary_outputs
     per_channel = {}
     for rows in resolution.values():
@@ -437,12 +449,14 @@ def test_reach_covers_the_dependencies_the_order_places_earlier(primary_outputs)
 # Schema / ordering invariants
 # --------------------------------------------------------------------------
 def test_summary_schema(primary_outputs):
+    """The summary carries exactly the contracted fields at the contracted types."""
     summary = primary_outputs[1]
     assert set(summary) == SUMMARY_KEYS
     assert summary["schema_version"] == SPEC["summary_json"]["schema_version"]
 
 
 def test_resolution_schema_and_sorting(primary_outputs):
+    """Resolution entries carry the contracted fields and the contracted order."""
     resolution = primary_outputs[2]
     assert isinstance(resolution, dict)
     assert list(resolution) == sorted(resolution)
@@ -456,6 +470,7 @@ def test_resolution_schema_and_sorting(primary_outputs):
 
 
 def test_plan_required_fields(primary_outputs):
+    """Every install-plan row carries the fields the contract requires."""
     plan = primary_outputs[3]
     for idx, row in enumerate(plan):
         assert set(row) == PLAN_KEYS
@@ -530,12 +545,14 @@ def test_a_frozen_entry_contributes_no_reach_to_its_dependents(primary_outputs):
 
 
 def test_install_plan_jsonl_compact(primary_outputs):
+    """The plan is one compact JSON object per line, as the contract states."""
     raw = (primary_outputs[0] / "install_plan.jsonl").read_text(encoding="utf-8")
     first = raw.splitlines()[0]
     assert ", " not in first and '": ' not in first
 
 
 def test_summary_math_consistency(primary_outputs):
+    """The summary's own totals agree with the artifacts emitted beside it."""
     _, summary, resolution, plan = primary_outputs
     entries = [e for rows in resolution.values() for e in rows]
     assert summary["resolved_package_count"] == len(entries)
@@ -546,11 +563,13 @@ def test_summary_math_consistency(primary_outputs):
 
 
 def test_summary_request_counts_track_the_input(primary_outputs):
+    """The request counters reconcile against the request set the run was handed."""
     requests = _load_json(DEFAULT_INPUT)
     assert primary_outputs[1]["raw_request_count"] == len(requests)
 
 
 def test_status_counts_enumerate_all_three(primary_outputs):
+    """status_counts names resolved, pinned and conflict in the contracted order."""
     counts = primary_outputs[1]["status_counts"]
     assert set(counts) == STATUSES
 
@@ -559,6 +578,7 @@ def test_status_counts_enumerate_all_three(primary_outputs):
 # Integrity, generalisation and anti-shortcut
 # --------------------------------------------------------------------------
 def test_original_snapshot_preserved():
+    """The frozen copy of the shipped resolver is still on disk, unmodified."""
     assert ORIGINAL_WORKFLOW_PATH.exists()
     digest = hashlib.sha256(ORIGINAL_WORKFLOW_PATH.read_bytes()).hexdigest()
     assert digest == FIXTURE["broken_pipeline_sha256"]
@@ -574,6 +594,7 @@ def test_broken_snapshot_is_wrong(small_outputs):
 
 
 def test_pipeline_rerun_idempotent():
+    """Re-running over the same request set reproduces the same artifacts."""
     rows = _requests(SMALL_ROOTS)
     first = _run_requests(rows)
     second = _run_requests(rows)
@@ -583,10 +604,12 @@ def test_pipeline_rerun_idempotent():
 
 
 def test_pipeline_supports_alternate_input(alternate_outputs):
+    """The resolver generalises to a request set it has never seen."""
     assert alternate_outputs[1]["resolved_package_count"] > 0
 
 
 def test_cli_defaults_work_and_match_explicit_run(primary_outputs):
+    """With no flags the run reads and writes its documented defaults."""
     # /app is root-owned, so the run cannot replace this directory -- only empty
     # it, which is what instruction.md and the contract ask for. The contents are
     # cleared here rather than the directory removed, for the same reason.
@@ -618,22 +641,42 @@ def test_cli_defaults_work_and_match_explicit_run(primary_outputs):
             "explicit run's")
 
 
-def test_submitted_program_runs_unprivileged_and_cannot_write_reward():
+PROBED_VERIFIER_ASSETS = [
+    "/logs/verifier/reward.txt",
+    "/tests/fixtures/expected_report.json",
+    "/tests/fixtures/contract_golden.json",
+    "/tests/fixtures/alt_requests.json",
+    "/tests/test_outputs.py",
+]
+
+
+def test_submitted_program_runs_unprivileged_and_cannot_reach_verifier_assets():
+    """Code run the way the resolver is run is uid 65534 and can reach none of the goldens.
+
+    Separate mode keeps the sealed fixtures out of the agent's container, but this
+    suite runs the agent's resolver HERE, where the goldens, the held-out request
+    set and this file all exist. Dropping the uid is what stands between that
+    process and them, so the probe reads as well as writes and covers every one.
+    Nothing here asserts a mode or an owner -- the builder assigns those -- only
+    that the boundary holds however it was set.
+    """
     work = _candidate_dir()
     probe = work / "probe.py"
     probe.write_text(
         "import os\n"
         "print(os.getuid())\n"
         "try:\n"
-        "    open('/logs/verifier/reward.txt').read()\n"
-        "    print('readable')\n"
-        "except OSError:\n"
-        "    print('unreadable')\n"
-        "try:\n"
         "    open('/logs/verifier/reward.txt', 'w').write('1')\n"
         "    print('writable')\n"
         "except OSError:\n"
-        "    print('unwritable')\n",
+        "    print('unwritable')\n"
+        "for path in %r:\n"
+        "    try:\n"
+        "        with open(path) as handle:\n"
+        "            handle.read(1)\n"
+        "        print(path, 'readable')\n"
+        "    except OSError:\n"
+        "        print(path, 'unreadable')\n" % (PROBED_VERIFIER_ASSETS,),
         encoding="utf-8")
     os.chmod(probe, 0o644)
     result = subprocess.run(
@@ -644,7 +687,24 @@ def test_submitted_program_runs_unprivileged_and_cannot_write_reward():
     )
     reap_candidate_uid()
     assert result.returncode == 0, result.stderr[-2000:]
-    assert result.stdout.splitlines() == ["65534", "unreadable", "unwritable"], result.stdout
+    # Every line is read as written: filtering blanks out of captured output would
+    # let a probe that printed nothing clear the reachability check, so the line
+    # count is asserted and a blank line is a failure rather than something skipped.
+    lines = result.stdout.split("\n")
+    assert lines and lines[-1] == "", "the probe's output does not end in a newline"
+    lines = lines[:-1]
+    assert len(lines) == 2 + len(PROBED_VERIFIER_ASSETS), (
+        f"the probe printed {len(lines)} lines, expected "
+        f"{2 + len(PROBED_VERIFIER_ASSETS)}: {lines!r}")
+    assert lines[0] == "65534", f"the resolver ran as uid {lines[0]!r}, not 65534"
+    assert lines[1] == "unwritable", "the resolver could write the reward file"
+    reported = dict(line.rsplit(" ", 1) for line in lines[2:])
+    assert sorted(reported) == sorted(PROBED_VERIFIER_ASSETS), (
+        f"the probe did not report on every asset: {sorted(reported)}")
+    reachable = sorted(path for path, seen in reported.items() if seen == "readable")
+    assert reachable == [], (
+        "code run the way the resolver is run can read verifier-only assets: "
+        f"{reachable}")
 
 
 def test_policy_source_path_decides_the_plan_it_produces():
@@ -722,19 +782,6 @@ def test_a_cycle_broken_row_reaches_the_plan_and_carries_cycle_break(primary_out
 
 
 
-def _version_key(text: str) -> tuple:
-    """Order versions the way the registry does, for probe assertions only.
-
-    Core numbers first, then a release ahead of any pre-release of it. Enough to
-    say which of two versions is higher; the graded ordering is the engine's own
-    and is checked by the sealed digests.
-    """
-    raw = str(text).split("+", 1)[0]
-    core, _, pre = raw.partition("-")
-    nums = tuple(int(x) if x.isdigit() else 0 for x in (core.split(".") + ["0", "0"])[:3])
-    return nums + ((0, pre) if pre else (1, ""))
-
-
 def _policy_probe(rows, mutate):
     """Run a staged request set once as shipped and once under a changed policy."""
     original = POLICY_PATH.read_text(encoding="utf-8")
@@ -799,6 +846,42 @@ def test_the_selection_override_list_is_resolved_from_the_policy():
 
 
 
+_MATURITY_RANK = {"dev": 0, "alpha": 1, "beta": 2, "rc": 3}
+_GA_RANK = 4
+
+
+def _is_prerelease_text(version: str) -> bool:
+    """True where the version carries a pre-release label, per #REG-7104."""
+    core = version.split("+", 1)[0]
+    return "-" in core
+
+
+def _version_key(version: str) -> tuple:
+    """The governance ordering of #REG-7104, for use in test expectations.
+
+    (major, minor, patch), then the maturity rank with GA highest, then the
+    pre-release number, then the integer in a +N build-metadata suffix.
+    """
+    raw = version.strip()
+    build = 0
+    if "+" in raw:
+        raw, meta = raw.split("+", 1)
+        digits = "".join(c for c in meta if c.isdigit())
+        build = int(digits) if digits else 0
+    rank, number = _GA_RANK, 0
+    if "-" in raw:
+        core, pre = raw.split("-", 1)
+        label = "".join(c for c in pre if c.isalpha()).lower()
+        digits = "".join(c for c in pre if c.isdigit())
+        rank = _MATURITY_RANK.get(label, 0)
+        number = int(digits) if digits else 0
+    else:
+        core = raw
+    parts = (core.split(".") + ["0", "0", "0"])[:3]
+    nums = [int("".join(c for c in part if c.isdigit()) or 0) for part in parts]
+    return (nums[0], nums[1], nums[2], rank, number, build)
+
+
 def test_the_reselect_cap_is_resolved_from_the_policy(primary_outputs):
     """#REG-7160: past the cap a package freezes; lifted, it resolves instead.
 
@@ -826,6 +909,34 @@ def test_the_reselect_cap_is_resolved_from_the_policy(primary_outputs):
     assert not after, (
         "corelib still froze after its re-selection cap was lifted, so the cap "
         "is not being read from the policy")
+    # The absence of a provenance label says nothing about what was selected. With
+    # the cap lifted the chain runs to its end, so every corelib entry must be
+    # resolved and carry the version the final constraint set admits -- checked
+    # against a run of the same request set with the cap out of the way entirely.
+    entries = resolution.get("corelib", [])
+    assert entries, "corelib left the resolution altogether once the cap was lifted"
+    for entry in entries:
+        assert entry["status"] == "resolved", (
+            f"corelib is {entry['status']} with the cap lifted: {entry}")
+        assert entry["chosen_version"] is not None, entry
+        # #REG-7104 takes the LOWEST version the constraints admit, so every
+        # alternative the entry still reports has to sort above the one it took.
+        for other in entry["alternatives_considered"]:
+            assert _version_key(other) > _version_key(entry["chosen_version"]), (
+                f"corelib took {entry['chosen_version']} while reporting {other} "
+                "as an alternative, which sorts below it")
+    # Dropping the label is not the same as running the chain to its end. The
+    # freeze left corelib on the version it held when the cap bit and reported a
+    # conflict; with the cap lifted the last constraint is honoured instead, and
+    # both the status and the version have to move.
+    held = {e["chosen_version"] for e in frozen}
+    assert [e["status"] for e in frozen] == ["conflict"], frozen
+    assert entries[0]["chosen_version"] not in held, (
+        f"corelib still sits on {entries[0]['chosen_version']}, the version the "
+        "freeze held, so lifting the cap only removed the provenance label")
+    assert entries[0]["chosen_version"] == "3.0.0", (
+        "with the cap lifted corelib must run on to the version its last "
+        f"constraint admits, not {entries[0]['chosen_version']}")
 
 
 
@@ -847,6 +958,23 @@ def test_the_prerelease_rank_floor_is_resolved_from_the_policy():
     after = shifted[2]["edgekit"][0]
     assert not after["is_prerelease"], (
         "a pre-release survived a floor no label can clear, so the floor is a constant")
+    # A boolean alone would pass a resolver that dropped edgekit or picked anything
+    # at all, so the chosen version is checked: the floor shuts out every
+    # pre-release and leaves the GA releases, of which the lowest satisfying one wins.
+    assert after["status"] == "resolved", after
+    assert not _is_prerelease_text(after["chosen_version"]), (
+        f"edgekit took {after['chosen_version']} under a floor no label clears, "
+        "and that version still carries a pre-release label")
+    assert before["chosen_version"] == "1.0.0-rc.1", (
+        f"edgekit takes {before['chosen_version']} on canary as shipped, so the "
+        "release candidate this probe raises the floor against is not in play")
+    assert after["chosen_version"] == "1.2.0", (
+        "with every pre-release shut out edgekit must fall to the lowest GA "
+        f"release its constraint admits, not {after['chosen_version']}")
+    for other in after["alternatives_considered"]:
+        assert not _is_prerelease_text(other), (
+            f"edgekit still reports the pre-release {other} as an alternative "
+            "under a floor that admits none")
 
 
 
@@ -1020,6 +1148,7 @@ def test_the_package_alternative_cap_overrides_the_baseline(primary_outputs):
 
 
 def test_capacity_cap_applied_after_ordering(small_outputs):
+    """#REG-7146 applies the plan cap after the ordering, not before it."""
     plan = small_outputs[3]
     policy = _load_json(POLICY_PATH)
     cap = policy["default"]["plan_capacity_cap"]
@@ -1071,6 +1200,7 @@ def _workflow_sources() -> list[Path]:
 
 
 def test_reconciler_does_not_import_resolver_libraries():
+    """Nothing under /app/workflow imports the version engines the contract forbids."""
     banned = set(SPEC["workflow_repair"]["prohibited_imports"])
     for source in _workflow_sources():
         found = _imported_modules(source.read_text(encoding="utf-8")) & banned
@@ -1078,6 +1208,7 @@ def test_reconciler_does_not_import_resolver_libraries():
 
 
 def test_ast_check_catches_packaging_importing_engine():
+    """The import scan really does catch a banned engine, however it is spelled."""
     assert "packaging" in _imported_modules("import packaging.version\n")
     assert "pip" in _imported_modules("from pip import main\n")
 
@@ -1091,30 +1222,28 @@ _LOADER_HOLDERS = frozenset({"__builtins__", "builtins", "importlib"})
 def _runtime_loading_offences(source: str) -> set[str]:
     """Anything in `source` that could fetch a module by name while it runs.
 
-    The name is caught wherever it is spelled -- called directly, reached through
-    an attribute, rebound to something else, or passed as a string to getattr --
-    because each of those reaches the same loader and none of them is an import
-    statement. A loader name appearing only inside prose, such as a docstring or
-    an error message, is not an offence: the instruction bans dynamically
-    generated and executed code, not the word.
+    What is banned is the OPERATION, not the word. A loader is reached by calling
+    one (`__import__(...)`, `importlib.import_module(...)`), by rebinding one
+    (`f = __import__`), or by pulling one off a holder by string
+    (`getattr(builtins, "__import__")`). Holding a reference to `builtins` or
+    `importlib` is none of those: `builtins.max(...)` is an ordinary standard-
+    library call and `print("importlib")` is prose, and failing either graded a
+    name rather than a behaviour.
     """
     offences: set[str] = set()
-    watched = _LOADER_NAMES | _LOADER_HOLDERS
     for node in ast.walk(ast.parse(source)):
-        if isinstance(node, ast.Name) and node.id in watched:
+        # a loader name wherever it is spelled: called, rebound or passed along
+        if isinstance(node, ast.Name) and node.id in _LOADER_NAMES:
             offences.add(node.id)
         elif isinstance(node, ast.Attribute) and node.attr in _LOADER_NAMES:
             offences.add(node.attr)
         elif isinstance(node, ast.Call):
-            # A loader name as a STRING counts only where it is being passed to
-            # a call -- getattr(builtins, "__import__") and its like. Matching
-            # every string constant also failed a resolver whose docstring or
-            # error message merely mentioned importlib, which the instruction
-            # does not forbid; the holder in that attack is itself a Name and is
-            # caught above regardless.
+            # a loader pulled off a holder by string -- getattr(builtins,
+            # "__import__") and its like. Only a LOADER name counts here; a
+            # holder's own name as a string is just a string.
             for arg in list(node.args) + [k.value for k in node.keywords]:
                 if (isinstance(arg, ast.Constant) and isinstance(arg.value, str)
-                        and arg.value in watched):
+                        and arg.value in _LOADER_NAMES):
                     offences.add(arg.value)
     return offences
 
@@ -1135,6 +1264,7 @@ def test_the_resolver_does_not_load_modules_by_name_at_run_time():
 
 
 def test_the_runtime_loading_check_catches_what_it_is_for():
+    """The loader scan catches every way of fetching a module by name, and nothing else."""
     for probe in (
         '__import__("packaging")\n',
         'import importlib\nimportlib.import_module("packaging")\n',
@@ -1142,9 +1272,16 @@ def test_the_runtime_loading_check_catches_what_it_is_for():
         'f = __import__\nf("packaging")\n',
     ):
         assert _runtime_loading_offences(probe), probe
-    # an ordinary resolver must not be caught by it
-    assert not _runtime_loading_offences(
-        "import json\nfrom pathlib import Path\nd = json.loads(Path('x').read_text())\n")
+    # ...and ordinary standard-library use must not be caught by it. Each of these
+    # was rejected before: holding a reference to builtins, and printing a word.
+    for allowed in (
+        "import json\nfrom pathlib import Path\nd = json.loads(Path('x').read_text())\n",
+        "import builtins\nbiggest = builtins.max([1, 2, 3])\n",
+        'print("importlib is not available to this resolver")\n',
+        'raise RuntimeError("importlib and builtins are both off limits here")\n',
+        "import importlib.util  # imported statically, never used to load by name\n",
+    ):
+        assert not _runtime_loading_offences(allowed), allowed
 
 
 BANNED_DYNAMIC = {"eval", "exec", "compile"}
@@ -1192,12 +1329,42 @@ def _dynamic_execution_offences(source: str) -> list[str]:
                 if alias.name == "builtins":
                     builtin_mods.add(alias.asname or alias.name)
 
+    # Names that are bound to something OTHER than the builtin of the same name:
+    # `from re import compile` makes a bare `compile(...)` a regex compile, and a
+    # local variable or a def of that name is not the builtin either. Failing
+    # those graded the spelling rather than the operation.
+    shadowed: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            if node.module.split(".")[0] != "builtins":
+                for alias in node.names:
+                    shadowed.add(alias.asname or alias.name)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            shadowed.add(node.name)
+            args = node.args
+            for arg in (list(args.posonlyargs) + list(args.args) + list(args.kwonlyargs)
+                        + [a for a in (args.vararg, args.kwarg) if a]):
+                shadowed.add(arg.arg)
+        elif isinstance(node, ast.Assign):
+            rebound = (isinstance(node.value, ast.Name)
+                       and node.value.id in BANNED_DYNAMIC | aliases)
+            attr_rebound = (isinstance(node.value, ast.Attribute)
+                            and node.value.attr in BANNED_DYNAMIC
+                            and isinstance(node.value.value, ast.Name)
+                            and node.value.value.id in builtin_mods)
+            if not (rebound or attr_rebound):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id in BANNED_DYNAMIC:
+                        shadowed.add(target.id)
+    shadowed -= aliases      # an alias bound TO a banned builtin is still an offence
+
     offences = []
     for node in ast.walk(tree):
         if (isinstance(node, ast.Attribute) and node.attr in BANNED_DYNAMIC
                 and isinstance(node.value, ast.Name) and node.value.id in builtin_mods):
             offences.append(f"{node.value.id}.{node.attr}")
-        elif isinstance(node, ast.Name) and node.id in BANNED_DYNAMIC | aliases:
+        elif (isinstance(node, ast.Name) and node.id in BANNED_DYNAMIC | aliases
+                and node.id not in shadowed):
             offences.append(node.id)
     return offences
 
@@ -1250,11 +1417,22 @@ def test_the_dynamic_execution_ban_catches_an_alias():
         assert _dynamic_execution_offences(source), source
     # and ordinary code still passes, including re.compile, which is not dynamic
     # execution and which the reference itself uses
-    assert not _dynamic_execution_offences("import json\njson.loads('{}')\n")
-    assert not _dynamic_execution_offences("import re\n_RE = re.compile(r'^a$')\n")
+    # ...and ordinary standard-library use must not be. `compile` is a builtin,
+    # but it is also re.compile, a parameter name and a function name, and none of
+    # those is dynamic execution.
+    for allowed in (
+        "import json\njson.loads('{}')\n",
+        "import re\n_RE = re.compile(r'^a$')\n",
+        "from re import compile\n_RE = compile(r'^a$')\n",
+        "from re import compile as _c\n_RE = _c(r'^a$')\n",
+        "def compile(spec):\n    return spec.strip()\n\nnorm = compile(' x ')\n",
+        "def render(compile):\n    return compile\n",
+    ):
+        assert not _dynamic_execution_offences(allowed), allowed
 
 
 def test_governance_log_present():
+    """The minute book the rules are reconstructed from is in the environment."""
     assert LOG_PATH.is_file() and LOG_PATH.stat().st_size > 1000
 
 
@@ -1551,6 +1729,11 @@ def test_a_name_that_coerces_to_nothing_becomes_unknown():
     assert set(resolution) == {"unknown"}, sorted(resolution)
 
 
+def collapse_ws(text: str) -> str:
+    """The contract's only stated coercion on a constraint: internal runs collapse."""
+    return " ".join(text.split())
+
+
 @pytest.mark.parametrize("constraint,expected", [
     (">=1.0.0", "1.0.0"),
     (">1.0.0", "1.5.0"),
@@ -1576,6 +1759,53 @@ def test_every_documented_constraint_operator_selects_as_ruled(constraint, expec
     entry = resolution["crypto-box"][0]
     assert entry["status"] == "resolved", (constraint, entry)
     assert entry["chosen_version"] == expected, (constraint, entry["chosen_version"])
+    # The report carries the constraint texts the requests accumulated. "" and "*"
+    # are two ANY tokens the contract names separately, and the only coercion it
+    # states is the whitespace collapse -- so an empty constraint is reported as
+    # the empty text it was, not rewritten to "*".
+    assert entry["satisfied_constraints"] == [collapse_ws(constraint)], (
+        f"{constraint!r} was reported as {entry['satisfied_constraints']}; the "
+        "contract asks for the accumulated constraint texts, coerced only by the "
+        "whitespace collapse")
+
+
+def test_the_visible_inputs_exercise_build_metadata_the_band_and_a_duplicate(primary_outputs):
+    """The stated rules bite on data the agent can see, not only in crafted probes.
+
+    Build-metadata precedence, the three-component compatible-release band and the
+    duplicate rule were each pinned only by a staged registry inside this suite,
+    so an agent reading /app/data saw no instance of any of them and the graded
+    answer did not depend on getting them right. The shipped registry and request
+    set now carry one case of each, and the graded resolution is read here.
+    """
+    _, _, resolution, _ = primary_outputs
+
+    # #REG-7104: 1.0.0 < 1.0.0+build3 < 1.0.0+build7, so ">1.0.0" has two candidates
+    # and takes the lower. Under the superseded semver reading nothing outranks 1.0.0.
+    meta = [e for e in resolution.get("pkg-buildmeta", [])]
+    assert meta, "pkg-buildmeta is missing from the graded resolution"
+    assert meta[0]["status"] == "resolved", (
+        "nothing outranked 1.0.0, so build metadata was dropped from the ordering")
+    assert meta[0]["chosen_version"] == "1.0.0+build3", meta[0]["chosen_version"]
+
+    # #REG-7106: ~=1.6.0 is >=1.6.0,<1.7.0, so 1.9.0 is out of band
+    band = [e for e in resolution.get("pkg-compatband", [])]
+    assert band, "pkg-compatband is missing from the graded resolution"
+    assert band[0]["status"] == "resolved", band[0]
+    assert band[0]["chosen_version"] == "1.6.0", (
+        f"~=1.6.0 selected {band[0]['chosen_version']}; the three-component band "
+        "stops at the next minor, so 1.9.0 and 2.0.0 are out of it")
+
+    # #REG-7102/#REG-7142: two requests share (channel, package, source); the more
+    # specific '==' survives, so the looser '>=' never reaches the selection
+    dup = [e for e in resolution.get("pkg-operators", [])]
+    assert dup, "pkg-operators is missing from the graded resolution"
+    assert dup[0]["chosen_version"] == "1.5.0", (
+        f"the duplicate lane resolved to {dup[0]['chosen_version']}; the more "
+        "specific '==' constraint governs, so 1.0.0 means the looser one survived")
+    assert dup[0]["satisfied_constraints"] == ["==1.5.0"], (
+        f"the surviving constraint texts are {dup[0]['satisfied_constraints']}; the "
+        "duplicate rule keeps one request, so only its text is accumulated")
 
 
 def test_the_three_component_compatible_release_bounds_at_the_next_minor():
@@ -1798,30 +2028,45 @@ def test_a_reselect_reports_the_alternatives_that_are_still_admissible():
     it reports must be recomputed against the tightened set: the reference built
     that list into a copy and threw it away, so the entry went out naming versions
     the final constraints no longer admit.
+
+    The tightening is DISCOVERED rather than requested. Two root requests are both
+    in hand before the first pass, so the second constraint would already be known
+    when netcore is first selected and the recomputation would never be needed;
+    here the tighter bound arrives on a dependency edge of a package that is
+    itself only selected on the first pass.
     """
-    registry = {"netcore": [
-        {"version": "1.0.0", "yanked": False, "deps": []},
-        {"version": "1.4.0", "yanked": False, "deps": []},
-        {"version": "2.0.0", "yanked": False, "deps": []},
-        {"version": "3.0.0", "yanked": False, "deps": []},
-    ]}
-    # the same package asked for twice in one channel from two sources: the second
-    # request tightens the set after the first has already resolved it
+    registry = {
+        "netcore": [
+            {"version": "1.0.0", "yanked": False, "deps": []},
+            {"version": "1.4.0", "yanked": False, "deps": []},
+            {"version": "2.0.0", "yanked": False, "deps": []},
+            {"version": "3.0.0", "yanked": False, "deps": []},
+        ],
+        # holder is selected first, and only then does its edge tighten netcore
+        "holder": [{"version": "1.0.0", "yanked": False, "deps": [
+            {"package": "netcore", "constraint": "<2.0.0"}]}],
+    }
     rows = [
         {"request_id": "r-1", "package": "netcore", "source": "app",
          "channel": "stable", "constraint": ">=1.0.0", "note": ""},
-        {"request_id": "r-2", "package": "netcore", "source": "svc",
-         "channel": "stable", "constraint": "<2.0.0", "note": ""},
+        {"request_id": "r-2", "package": "holder", "source": "app",
+         "channel": "stable", "constraint": ">=1.0.0", "note": ""},
     ]
     _, _, resolution, _ = _staged_run(rows, registry)
     entry = resolution["netcore"][0]
     assert entry["chosen_version"] == "1.0.0", entry
-    admissible = {"1.0.0", "1.4.0"}
+    assert entry["satisfied_constraints"] == [">=1.0.0", "<2.0.0"] or set(
+        entry["satisfied_constraints"]) == {">=1.0.0", "<2.0.0"}, (
+        "the dependency edge did not reach netcore, so nothing tightened after "
+        f"the first selection: {entry['satisfied_constraints']}")
+    # >=1.0.0 and <2.0.0 admit 1.0.0 and 1.4.0; 1.0.0 is chosen, so exactly one
+    # alternative remains. An empty list would satisfy a subset check while
+    # reporting nothing at all, which is the reading this test exists to refuse.
     reported = set(entry["alternatives_considered"])
-    assert reported <= admissible - {entry["chosen_version"]}, (
-        "the entry reports alternatives the tightened constraints no longer admit",
-        sorted(reported),
-    )
+    assert reported == {"1.4.0"}, (
+        "the entry must report exactly the admissible versions it did not choose; "
+        f"it reported {sorted(reported)} where 1.4.0 alone qualifies")
+    assert entry["alternatives_count"] == len(entry["alternatives_considered"])
 
 
 def test_a_frozen_entry_reports_alternatives_against_the_final_constraints():
@@ -1872,7 +2117,15 @@ def test_a_frozen_entry_reports_alternatives_against_the_final_constraints():
     assert "4.0.0" not in reported, (
         "the frozen entry still names 4.0.0, which the constraint discovered "
         "after the freeze no longer admits, so its list was fixed at that moment")
-    assert reported <= {"3.0.0"}, sorted(reported)
+    # 3.0.0 is the only version the final constraints admit and it is not the one
+    # the freeze held, so it must be REPORTED. A subset check passed an entry that
+    # named nothing at all, which is a different failure wearing the same shape.
+    expected = {"3.0.0"} - {entry["chosen_version"]}
+    assert reported == expected, (
+        "the frozen entry must report exactly the versions the final constraints "
+        f"admit and it did not choose; it reported {sorted(reported)} where "
+        f"{sorted(expected)} was due")
+    assert entry["alternatives_count"] == len(entry["alternatives_considered"])
 
 
 
