@@ -6822,5 +6822,21 @@
     "package": "pkg-operators",
     "request_id": "req-00853",
     "source": "app"
+  },
+  {
+    "channel": "stable",
+    "constraint": "",
+    "note": "any release accepted",
+    "package": "netcore",
+    "request_id": "req-00854",
+    "source": "audit"
+  },
+  {
+    "channel": "stable",
+    "constraint": "*",
+    "note": "any release accepted",
+    "package": "edgekit",
+    "request_id": "req-00855",
+    "source": "audit"
   }
 ]

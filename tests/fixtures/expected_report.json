@@ -43,14 +43,14 @@
   "input_bytes_sha256": {
     "registry_replay_journal.json": "cc606210c14dc3638318286929a98ab6d835a66ce97814867d5d7f36e478fd53",
     "registry_snapshot_pre_migration.json": "3786a2410d263581110f0e7281bf615124d96197969822b2337aed0282b22b19",
-    "report_spec.json": "a7490d3bac5f96693f26748bee58a340a22b157a8111ab4150cb88ba280fae44"
+    "report_spec.json": "11580102842dfcc1afb366e4c99ea1fc8780cd0bb2f0786dc62341c2ebc36b3b"
   },
   "journal_digest": "d5e93193bd9a573aa373459fcc7c92d001ee4e0e469b24a2ed277cd82dbcf0ed",
   "primary": {
     "plan_digest": "05e1c411be1a3b8f5201c384f03ff1fea72bf1859512f5e937e7624f5e7c428c",
-    "resolution_digest": "8ce8dac34afcc9c8e7baedd5de97aa2e1ecc8431f9a8bd824d39ced69c3383f1",
+    "resolution_digest": "df2475307f6100cbe5d1b9877396d8bb1451b025b9a0f54b1c30678cf36b74c4",
     "summary": {
-      "canonical_request_count": 852,
+      "canonical_request_count": 854,
       "channel_count": 2,
       "conflict_count": 2,
       "cyclic_package_count": 12,
@@ -73,7 +73,7 @@
       "max_reach_count": 18216,
       "max_reselect_count": 0,
       "planned_install_count": 6,
-      "raw_request_count": 853,
+      "raw_request_count": 855,
       "resolved_package_count": 43795,
       "schema_version": "reg-resolve-v1",
       "status_counts": {
@@ -84,7 +84,7 @@
       "total_alternatives_considered": 58336,
       "total_conflict_weight": 10,
       "total_reselects": 2,
-      "unique_request_ids": 853
+      "unique_request_ids": 855
     }
   },
   "recovered_index_digest": "dc16fdec56f7c8d9a7425f5b69102e928e30ec104c193a31a009b8e833716676",

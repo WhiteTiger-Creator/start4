@@ -645,9 +645,35 @@ def test_pipeline_rerun_idempotent():
     assert _digest(first[3]) == _digest(second[3])
 
 
-def test_pipeline_supports_alternate_input(alternate_outputs):
-    """The resolver generalises to a request set it has never seen."""
-    assert alternate_outputs[1]["resolved_package_count"] > 0
+def test_pipeline_supports_alternate_input(alternate_outputs, primary_outputs):
+    """The resolver generalises to a request set it has never seen.
+
+    Stated as properties of that run rather than against the sealed digest,
+    which test_alternate_request_set_matches_fixture already carries: the raw
+    count has to be the alternate file's own row count, every package it asks
+    for has to come back answered, and the result has to differ from the graded
+    one. "More than nothing" was satisfied by a resolver that ignored --input
+    and re-read the default file, and by one that answered a single request out
+    of the whole set.
+    """
+    _, summary, resolution, plan = alternate_outputs
+    rows = _load_json(ALT_INPUT)
+    assert summary["raw_request_count"] == len(rows), (
+        f"the run counted {summary['raw_request_count']} raw requests against the "
+        f"{len(rows)} the alternate file holds, so it did not read that file")
+    asked = {_canon_probe(row["package"]) for row in rows}
+    unanswered = sorted(asked - set(resolution))
+    assert not unanswered, (
+        f"{len(unanswered)} requested packages carry no resolution entry, "
+        f"beginning {unanswered[:5]}")
+    assert plan, "the alternate run planned nothing at all"
+    assert summary["resolved_package_count"] >= len(asked)
+
+    # a different request set is a different answer, so a run that ignored
+    # --input and resolved the graded file again cannot pass this
+    primary_summary = primary_outputs[1]
+    assert summary != primary_summary
+    assert _digest(resolution) != _digest(primary_outputs[2])
 
 
 def test_cli_defaults_work_and_match_explicit_run(primary_outputs):
@@ -1061,10 +1087,24 @@ def test_a_package_named_default_cannot_reach_the_global_limits():
     written default, Default or DEFAULT produces -- so such an entry replaced a
     global limit that has nothing to do with that package. Each spelling is
     planted here and neither figure may move.
+
+    The probe has to be a world where both figures BITE, or the planted values
+    change nothing whether they are read or not: the small roots plan three rows
+    against a cap of three, so a cap of one would cut two of them, and the
+    ghostpin row is pinned to a version the index does not carry, so there is a
+    conflict for a weight of 999 to multiply.
     """
-    rows = [{"request_id": "req-1", "package": "netcore", "source": "probe",
-             "channel": "stable", "constraint": ">=0.0.0", "note": ""}]
-    base = _run_requests(rows)
+    rows = _requests(SMALL_ROOTS) + [
+        {"request_id": "probe-ghost", "package": "ghostpin", "source": "probe",
+         "channel": "stable", "constraint": ">=0.0.0", "note": ""}]
+    _, base_summary, _, base_plan = _run_requests(rows)
+    # the probe is only worth running where the planted figures would show
+    assert base_summary["planned_install_count"] > 1, (
+        "the probe plans at most one row, so a planted cap of one would not show")
+    assert base_summary["conflict_count"] > 0, (
+        "the probe reaches no conflict, so a planted weight would not show")
+    assert base_summary["total_conflict_weight"] > 0
+
     original = POLICY_PATH.read_text(encoding="utf-8")
     try:
         for spelling in ("default", "Default", "DEFAULT", "__default__"):
@@ -1073,12 +1113,15 @@ def test_a_package_named_default_cannot_reach_the_global_limits():
                 "plan_capacity_cap": 1, "conflict_weight": 999}
             POLICY_PATH.write_text(json.dumps(policy, indent=2) + "\n", encoding="utf-8")
             _, summary, _, plan = _run_requests(rows)
-            assert summary["planned_install_count"] == base[1]["planned_install_count"], (
+            assert summary["planned_install_count"] == base_summary["planned_install_count"], (
                 f"a package override written {spelling!r} changed the plan capacity "
                 "cap, so the global limit is being read through a package name")
-            assert summary["total_conflict_weight"] == base[1]["total_conflict_weight"], (
-                f"a package override written {spelling!r} changed the conflict weight")
-            assert len(plan) == len(base[3])
+            assert summary["total_conflict_weight"] == base_summary["total_conflict_weight"], (
+                f"a package override written {spelling!r} changed the conflict weight, "
+                "so the global figure is being read through a package name")
+            assert len(plan) == len(base_plan)
+            assert [(row["channel"], row["package"]) for row in plan] == [
+                (row["channel"], row["package"]) for row in base_plan]
     finally:
         POLICY_PATH.write_text(original, encoding="utf-8")
 
@@ -1189,16 +1232,72 @@ def test_the_package_alternative_cap_overrides_the_baseline(primary_outputs):
     assert entry["chosen_version"] not in entry["alternatives_considered"]
 
 
-def test_capacity_cap_applied_after_ordering(small_outputs):
-    """#REG-7146 applies the plan cap after the ordering, not before it."""
-    plan = small_outputs[3]
-    policy = _load_json(POLICY_PATH)
-    cap = policy["default"]["plan_capacity_cap"]
-    per_channel: dict[str, int] = {}
-    for row in plan:
-        per_channel[row["channel"]] = per_channel.get(row["channel"], 0) + 1
-    for count in per_channel.values():
-        assert count <= cap
+# chain-a depends on chain-b, which depends on chain-c, and so on down to
+# chain-e: the one place in the registry where a dependency sorts AFTER its
+# dependent, so the install order is the reverse of the name order and the two
+# can be told apart.
+ORDERING_ROOT = "chain-a"
+
+
+def test_capacity_cap_applied_after_ordering():
+    """#REG-7146 applies the plan cap after the ordering, not before it.
+
+    Counting the surviving rows only shows the cap was applied somewhere; it says
+    nothing about WHEN, which is the half of the rule the draft had backwards.
+    Everywhere else in the registry a dependency also sorts before its dependent
+    by name, so the install order and the name order agree and no request set
+    separates them. The chain does not: chain-a depends on chain-b down to
+    chain-e, so the order installs chain-e first and the cap must keep the
+    deepest three, where a cap taken before the ordering keeps chain-a and the
+    two below it. The same set is run again with the cap lifted clear of the
+    plan, and each channel's capped rows must be that channel's first rows in
+    the lifted ordering.
+    """
+    rows = _requests([ORDERING_ROOT])
+    _, summary, _, plan = _run_requests(rows)
+    original = POLICY_PATH.read_text(encoding="utf-8")
+    cap = json.loads(original)["default"]["plan_capacity_cap"]
+    try:
+        policy = json.loads(original)
+        policy["default"]["plan_capacity_cap"] = 10_000
+        POLICY_PATH.write_text(json.dumps(policy, indent=2) + "\n", encoding="utf-8")
+        _, lifted_summary, _, lifted = _run_requests(rows)
+    finally:
+        POLICY_PATH.write_text(original, encoding="utf-8")
+
+    assert lifted_summary["planned_install_count"] > len(plan), (
+        "the cap does not bind on this request set even at its shipped figure, so "
+        "nothing here distinguishes capping before ordering from capping after")
+
+    def per_channel(rows_):
+        out: dict[str, list] = {}
+        for row in rows_:
+            out.setdefault(row["channel"], []).append((row["package"], row["version"]))
+        return out
+
+    capped, uncapped = per_channel(plan), per_channel(lifted)
+    assert set(capped) <= set(uncapped)
+    for channel, kept in capped.items():
+        assert len(kept) <= cap, f"{channel} kept {len(kept)} rows against a cap of {cap}"
+        assert kept == uncapped[channel][:len(kept)], (
+            f"{channel} kept {[name for name, _ in kept]}, not the first {len(kept)} "
+            f"of the ordering {[name for name, _ in uncapped[channel][:len(kept) + 2]]}; "
+            "#REG-7146 caps the ordered plan rather than choosing which rows to order")
+    for channel, ordered in uncapped.items():
+        if len(ordered) > cap:
+            assert channel in capped and len(capped[channel]) == cap, (
+                f"{channel} had {len(ordered)} rows to order but kept "
+                f"{len(capped.get(channel, []))} of them")
+
+    # the deepest dependency really does come first, so the two orders differ
+    ordered_names = [name for name, _ in uncapped["stable"]]
+    assert ordered_names != sorted(ordered_names), (
+        "the install order matches the name order on this set, so it cannot show "
+        "which of the two the cap was applied to")
+
+    # and the row numbering closes over the rows the cap deferred
+    assert [row["order_index"] for row in plan] == list(range(len(plan)))
+    assert summary["planned_install_count"] == len(plan)
 
 
 def test_cycles_are_non_fatal(primary_outputs):
@@ -1811,14 +1910,15 @@ def test_every_documented_constraint_operator_selects_as_ruled(constraint, expec
         "whitespace collapse")
 
 
-def test_the_visible_inputs_exercise_build_metadata_the_band_and_a_duplicate(primary_outputs):
+def test_the_visible_inputs_exercise_build_metadata_the_band_a_duplicate_and_any(primary_outputs):
     """The stated rules bite on data the agent can see, not only in crafted probes.
 
-    Build-metadata precedence, the three-component compatible-release band and the
-    duplicate rule were each pinned only by a staged registry inside this suite,
-    so an agent reading /app/data saw no instance of any of them and the graded
-    answer did not depend on getting them right. The shipped registry and request
-    set now carry one case of each, and the graded resolution is read here.
+    Build-metadata precedence, the three-component compatible-release band, the
+    duplicate rule and the two ANY tokens were each pinned only by a staged
+    registry or a crafted request inside this suite, so an agent reading
+    /app/data saw no instance of any of them and the graded answer did not
+    depend on getting them right. The shipped registry and request set now carry
+    one case of each, and the graded resolution is read here.
     """
     _, _, resolution, _ = primary_outputs
 
@@ -1848,6 +1948,26 @@ def test_the_visible_inputs_exercise_build_metadata_the_band_and_a_duplicate(pri
     assert dup[0]["satisfied_constraints"] == ["==1.5.0"], (
         f"the surviving constraint texts are {dup[0]['satisfied_constraints']}; the "
         "duplicate rule keeps one request, so only its text is accumulated")
+
+    # #REG-7101 and #REG-7106 name '' and '*' as the two ANY tokens, and the
+    # spec has satisfied_constraints carry the texts as written. The shipped
+    # requests now ask for netcore under an empty constraint and edgekit under a
+    # star, each from a source of its own so neither is deduplicated away, so
+    # both tokens accumulate beside the constraint already on the package.
+    net = [e for e in resolution.get("netcore", []) if e["channel"] == "stable"]
+    assert net, "netcore is missing from the graded stable resolution"
+    assert net[0]["satisfied_constraints"] == ["", ">=1.0.0"], (
+        f"netcore reports {net[0]['satisfied_constraints']}; the empty constraint is "
+        "an ANY token reported as the empty text it was, not rewritten to '*' or dropped")
+    assert net[0]["chosen_version"] == "1.4.0", (
+        "an ANY token restricts nothing, so it must not move the selection")
+
+    edge = [e for e in resolution.get("edgekit", []) if e["channel"] == "stable"]
+    assert edge, "edgekit is missing from the graded stable resolution"
+    assert edge[0]["satisfied_constraints"] == ["*", ">=0.9.0"], (
+        f"edgekit reports {edge[0]['satisfied_constraints']}; '*' is the other ANY "
+        "token and is reported as the text it was")
+    assert edge[0]["chosen_version"] == "1.2.0"
 
 
 def test_the_three_component_compatible_release_bounds_at_the_next_minor():

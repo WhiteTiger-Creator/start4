@@ -95,6 +95,7 @@
       "type": "integer"
     },
     "satisfied_constraints": {
+      "content": "the constraint texts that accumulated against the package, each as the request carried it after the constraint field's own whitespace collapse and rewritten no further: the two any_tokens are reported as the tokens they were, so an empty constraint is reported as the empty string and '*' as '*', and neither is rewritten into the other or dropped",
       "items": "string",
       "order": "ascending",
       "type": "array"
