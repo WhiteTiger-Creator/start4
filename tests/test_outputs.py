@@ -2182,6 +2182,118 @@ def test_policy_channel_names_are_canonicalised_before_they_are_matched():
     assert entry["is_prerelease"] is True
 
 
+def test_a_pin_written_uncanonically_still_binds():
+    """report_spec.json canonicalises the channel and package keys of pins.
+
+    The shipped policy spells both canonically, so every graded run reads the
+    same whether the lookup coerces its keys or takes them as they are. A raw
+    lookup silently loses the pin for a name an operator wrote differently,
+    which changes the selection rather than failing, and no probe here planted a
+    pin under anything but its canonical spelling.
+    """
+    registry = _load_json(REGISTRY_PATH)
+    package = "netcore"
+    versions = sorted((e["version"] for e in registry.get(package, [])),
+                      key=_version_key)
+    assert len(versions) > 1, f"{package} carries one version, so a pin proves nothing"
+    pinned = versions[0]
+    rows = [{"request_id": "req-1", "package": package, "source": "probe",
+             "channel": "stable", "constraint": ">=0.0.0", "note": ""}]
+
+    # the package key, under the channel key the policy already spells canonically
+    spelling = "  NetCore  "
+    assert _canon_probe(spelling) == package, (
+        "the planted spelling does not canonicalise onto the package, so the "
+        "probe would be asking for a name the policy is right to ignore")
+    base, shifted = _policy_probe(
+        rows, lambda pol: pol.setdefault("pins", {}).setdefault(
+            "stable", {}).__setitem__(spelling, pinned))
+    assert base[2][package][0]["chosen_version"] != pinned, (
+        "the probe pinned the version the resolver already chose, so it proves nothing")
+    entry = shifted[2][package][0]
+    assert entry["chosen_version"] == pinned and entry["provenance"] == "pin-override", (
+        f"a pin written {spelling!r} did not reach the package canonicalised as "
+        "netcore, so the pin table's package keys are matched raw", entry)
+
+    # and the channel key, on a channel the shipped pins do not mention at all
+    canary = [dict(rows[0], channel="canary")]
+
+    def under_a_shouted_channel(pol):
+        pol.setdefault("pins", {})["  CANARY  "] = {package: pinned}
+
+    canary_base, canary_shifted = _policy_probe(canary, under_a_shouted_channel)
+    assert canary_base[2][package][0]["chosen_version"] != pinned
+    canary_entry = canary_shifted[2][package][0]
+    assert canary_entry["chosen_version"] == pinned, (
+        "a pin filed under '  CANARY  ' did not bind on the canary channel, so "
+        "the pin table's channel keys are matched raw", canary_entry)
+
+
+def test_a_selection_override_written_uncanonically_still_applies():
+    """The entries of selection_overrides carry identity and are coerced too.
+
+    cryptobox ships on the list under its canonical name. Written any other way
+    a raw membership test drops it back onto the default direction, which picks
+    a different version -- the same silent change the list exists to prevent.
+    """
+    rows = [{"request_id": "req-1", "package": "cryptobox", "source": "probe",
+             "channel": "stable", "constraint": ">=0.0.0", "note": ""}]
+
+    spelling = "_CryptoBox_"
+    assert _canon_probe(spelling) == "cryptobox"
+
+    def rename(pol):
+        pol["selection_overrides"] = [spelling if n == "cryptobox" else n
+                                      for n in pol.get("selection_overrides", [])]
+
+    base, shifted = _policy_probe(rows, rename)
+    before, after = base[2]["cryptobox"][0], shifted[2]["cryptobox"][0]
+    assert before["provenance"] == "override-selection", (
+        "cryptobox is not on the override path to begin with")
+    assert after["provenance"] == "override-selection", (
+        f"spelling the list entry {spelling!r} took cryptobox off the override "
+        "path, so the list is matched raw", after)
+    assert after["chosen_version"] == before["chosen_version"]
+
+
+def test_a_package_override_written_uncanonically_still_applies():
+    """The keys of package_overrides carry identity and are coerced as names.
+
+    cryptobox's alt_report_cap of two is the only thing holding its alternatives
+    below the baseline of four, so the three runs here separate a coerced lookup
+    from a raw one: the shipped key caps it, dropping the entry lifts it, and the
+    same entry filed as Crypto_Box has to cap it again.
+    """
+    rows = [{"request_id": "req-1", "package": "cryptobox", "source": "probe",
+             "channel": "stable", "constraint": ">=0.0.0", "note": ""}]
+
+    def drop(pol):
+        pol.get("package_overrides", {}).pop("cryptobox", None)
+
+    spelling = "  CRYPTOBOX "
+    assert _canon_probe(spelling) == "cryptobox"
+
+    def rename(pol):
+        entry = pol.get("package_overrides", {}).pop("cryptobox")
+        pol["package_overrides"][spelling] = entry
+
+    base, lifted = _policy_probe(rows, drop)
+    cap = _load_json(POLICY_PATH)["package_overrides"]["cryptobox"]["alt_report_cap"]
+    capped_count = base[2]["cryptobox"][0]["alternatives_count"]
+    assert capped_count == cap, "the shipped override does not bind on this run"
+    assert lifted[2]["cryptobox"][0]["alternatives_count"] > cap, (
+        "removing the override changed nothing, so this run cannot tell the "
+        "override from the baseline")
+
+    _, renamed = _policy_probe(rows, rename)
+    entry = renamed[2]["cryptobox"][0]
+    assert entry["alternatives_count"] == cap, (
+        f"an override filed as {spelling!r} did not reach the package "
+        "canonicalised as cryptobox, so package_overrides keys are matched raw",
+        entry)
+    assert len(entry["alternatives_considered"]) == cap
+
+
 def test_a_reselect_reports_the_alternatives_that_are_still_admissible():
     """#REG-7156 reports the candidates admissible as the constraints finally stand.
 
