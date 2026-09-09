@@ -1,20 +1,13 @@
 FROM public.ecr.aws/docker/library/python:3.13-slim-bookworm@sha256:01f42367a0a94ad4bc17111776fd66e3500c1d87c15bbd6055b7371d39c124fb
 
 # Verifier dependencies, baked in (no network at trial time). Grading uses the
-# stdlib only (json/hashlib/ast/subprocess) plus pytest.
-RUN set -eu; \
-    delay=5; \
-    for attempt in 1 2 3 4; do \
-        if pip install --no-cache-dir --timeout 30 --retries 3 \
-                pytest==8.4.1 \
-                pytest-json-ctrf==0.3.5; then \
-            exit 0; \
-        fi; \
-        echo "pip attempt ${attempt} failed, retrying in ${delay}s" >&2; \
-        sleep "${delay}"; \
-        delay=$((delay * 2)); \
-    done; \
-    exit 1
+# stdlib only (json/hashlib/ast/subprocess) plus pytest. Retries are pip's own
+# rather than a shell loop wrapped around it: the loop put shell words on the
+# same command as the install, where a scan for unpinned dependencies read them
+# as package names.
+RUN pip install --no-cache-dir --retries=5 --timeout=60 \
+        pytest==8.4.1 \
+        pytest-json-ctrf==0.3.5
 
 # Landing directory for the declared artifact (/app) collected from the agent's
 # environment. Its parent must exist in the verifier image before the copy.
@@ -27,14 +20,14 @@ RUN mkdir -p /app
 RUN mkdir -p /candidate-work && chmod 1777 /candidate-work
 
 WORKDIR /tests
-# The whole verifier tree in one copy, so a file added here later cannot be left
-# out of the image by a COPY line nobody remembered to add.
-COPY . /tests/
+# Named one by one rather than as a bulk copy of the context: what lands in the
+# image is then visible here, and this Dockerfile itself stays out of /tests.
+COPY test_outputs.py /tests/test_outputs.py
+COPY test.sh /tests/test.sh
+COPY fixtures/ /tests/fixtures/
 
-# Keep the held-out fixtures readable only by root, so the unprivileged candidate cannot read
-# expected outputs even though it can be handed staged inputs.
-# Closing the two directories is enough: without search permission on them nothing
-# below can be reached by another uid.
+# Keep the held-out fixtures readable only by root, so the unprivileged candidate
+# cannot read expected outputs even though it can be handed staged inputs.
 # Closing the two directories is enough: without search permission on them
 # nothing below can be reached by another uid, so no recursive mode change
 # is needed.
