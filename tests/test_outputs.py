@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 
+APP = Path("/app")
 WORKFLOW_PATH = Path("/app/workflow/resolver.py")
 ORIGINAL_WORKFLOW_PATH = Path("/app/workflow/.resolver.original")
 DEFAULT_INPUT = Path("/app/data/requests.json")
@@ -319,6 +320,42 @@ def test_registry_index_recovered():
     assert len(index) == FIXTURE["recovered_package_count"]
     assert sum(len(v) for v in index.values()) == FIXTURE["recovered_release_count"]
     assert _digest(index) == FIXTURE["recovered_index_digest"]
+
+
+def test_the_recovered_index_keeps_the_governed_package_order():
+    """#REG-7170 fixes the ORDER of the rebuilt index, and the digest cannot see it.
+
+    _digest serialises with sorted keys, so an index written out with
+    json.dump(..., sort_keys=True) -- an ordinary move for a run told to be
+    identical across reruns -- hashed the same as one carrying the governed order
+    and cleared the count and digest checks alike. The order is recomputed here
+    from the two sources the replay reads: the snapshot's own package order, then
+    every package the journal creates, appended at the end in the order the
+    replay meets them. aa-registry-late is created by the journal and sorts before
+    every snapshot package, so the governed order is not the sorted one and the
+    two readings part company.
+    """
+    index = _load_json(REGISTRY_PATH)
+    snapshot = _load_json(SNAPSHOT_PATH)
+    journal = _load_json(JOURNAL_PATH)
+
+    fresh, seen = [], set(snapshot)
+    for entry in sorted(journal, key=lambda e: e["journal_seq"]):
+        if entry["journal_op"] == "append" and entry["package"] not in seen:
+            seen.add(entry["package"])
+            fresh.append(entry["package"])
+    assert fresh, (
+        "the journal creates no package the snapshot lacked, so nothing here can "
+        "tell the governed order from any other")
+    expected = [package for package in list(snapshot) + fresh if package in index]
+    assert expected != sorted(expected), (
+        "the governed order coincides with the sorted order on this data, so this "
+        "check cannot see the difference it exists to see")
+    assert list(index) == expected, (
+        "the rebuilt index does not carry the snapshot's package order with the "
+        "journal's new packages appended at the end; "
+        + ("it is in sorted order" if list(index) == sorted(index)
+           else f"it opens {list(index)[:3]} and closes {list(index)[-3:]}"))
 
 
 def test_recovered_records_carry_no_journal_bookkeeping():
@@ -1329,13 +1366,19 @@ def _imported_modules(source: str) -> set[str]:
 
 
 def _workflow_sources() -> list[Path]:
-    """Every Python file the submission ships under /app/workflow.
+    """Every Python file the submission ships anywhere under /app.
 
     Scanning resolver.py alone let a helper module beside it import packaging or
-    reach eval and pass, so the whole directory is read. The frozen snapshot is
-    not a .py file and is checked by its own hash elsewhere.
+    reach eval and pass, so the directory was read whole -- and that was still not
+    enough. Putting the helper one directory further out, at /app/lib, and adding
+    /app to sys.path is an ordinary refactor of a resolver this size, and it left
+    the banned import in a file the scan never opened. /app is the only tree
+    carried across from the agent's container, so reading every .py under it
+    leaves the submission nowhere to put the import that the scan does not reach.
+    The frozen snapshot is not a .py file and is checked by its own hash
+    elsewhere.
     """
-    sources = sorted(WORKFLOW_PATH.parent.rglob("*.py"))
+    sources = sorted(APP.rglob("*.py"))
     assert WORKFLOW_PATH in sources, "the resolver is not where the contract puts it"
     return sources
 
@@ -1842,6 +1885,15 @@ def test_stale_files_are_cleared_from_the_output_directory(tmp_path: Path):
     names = sorted(q.name for q in out_dir.iterdir())
     assert names == ["install_plan.jsonl", "resolution.json", "summary.json"], names
     assert _load_json(out_dir / "summary.json") != {}, "the stale summary was left in place"
+    # Three names are not the deliverable. No --input is passed, so this run reads
+    # the same request set the graded one does and owes the same three artifacts;
+    # a resolver that cleared the directory and wrote three empty documents
+    # whenever it was handed an explicit --output-dir satisfied every line above.
+    assert _load_json(out_dir / "summary.json") == FIXTURE["primary"]["summary"]
+    assert _digest(_load_json(out_dir / "resolution.json")) == \
+        FIXTURE["primary"]["resolution_digest"]
+    assert _digest(_load_jsonl(out_dir / "install_plan.jsonl")) == \
+        FIXTURE["primary"]["plan_digest"]
 
 
 def test_request_names_are_canonicalised_before_they_are_matched():

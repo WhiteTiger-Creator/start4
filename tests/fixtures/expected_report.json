@@ -41,11 +41,11 @@
   },
   "broken_pipeline_sha256": "8cf92539557251fdefe095d8e13e6ba0d93130997dcf6e05a70ff379fdacafb5",
   "input_bytes_sha256": {
-    "registry_replay_journal.json": "cc606210c14dc3638318286929a98ab6d835a66ce97814867d5d7f36e478fd53",
+    "registry_replay_journal.json": "a2793a5de690fe59fbfa665974b29afaa23eb52ad9db8114d3e67f33e26ad523",
     "registry_snapshot_pre_migration.json": "3786a2410d263581110f0e7281bf615124d96197969822b2337aed0282b22b19",
     "report_spec.json": "11580102842dfcc1afb366e4c99ea1fc8780cd0bb2f0786dc62341c2ebc36b3b"
   },
-  "journal_digest": "d5e93193bd9a573aa373459fcc7c92d001ee4e0e469b24a2ed277cd82dbcf0ed",
+  "journal_digest": "805b9b03ccb8ec5b689384a57b14fc65b348fe118dbe66aa4417e06bad6b63d2",
   "primary": {
     "plan_digest": "05e1c411be1a3b8f5201c384f03ff1fea72bf1859512f5e937e7624f5e7c428c",
     "resolution_digest": "df2475307f6100cbe5d1b9877396d8bb1451b025b9a0f54b1c30678cf36b74c4",
@@ -87,9 +87,9 @@
       "unique_request_ids": 855
     }
   },
-  "recovered_index_digest": "dc16fdec56f7c8d9a7425f5b69102e928e30ec104c193a31a009b8e833716676",
-  "recovered_package_count": 24015,
-  "recovered_release_count": 56026,
+  "recovered_index_digest": "94562085e37f576752d14a4ea20cdd664fb3e5f2c733243ef4a9f5d6710f2a0b",
+  "recovered_package_count": 24016,
+  "recovered_release_count": 56027,
   "shipped_truncated_digest": "d75bdf0e08f7e29358edba97d7954ecb7226dc810b6496f0744baac4a02e02ba",
   "snapshot_digest": "54a829fbcbf88b91600a130640b4dad79c6463cf34eb63f71928be5d4bf79f66"
 }
