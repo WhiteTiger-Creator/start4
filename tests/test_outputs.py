@@ -624,10 +624,27 @@ def test_a_frozen_entry_contributes_no_reach_to_its_dependents(primary_outputs):
 
 
 def test_install_plan_jsonl_compact(primary_outputs):
-    """The plan is one compact JSON object per line, as the contract states."""
+    """The plan is one compact JSON object per line, as the contract states.
+
+    Every line, not the first one alone: the contract says one compact object per
+    line, and reading only line zero was strictly weaker than that -- a writer
+    that emitted the first row compact and the rest at json.dumps's default
+    spacing cleared the check, parsed cleanly and matched the sealed digest,
+    since the digest re-serialises canonically and cannot see the layout at all.
+    """
     raw = (primary_outputs[0] / "install_plan.jsonl").read_text(encoding="utf-8")
-    first = raw.splitlines()[0]
-    assert ", " not in first and '": ' not in first
+    lines = raw.splitlines()
+    assert lines, "the plan is empty, so its serialisation proves nothing"
+    for number, line in enumerate(lines, start=1):
+        assert ", " not in line and '": ' not in line, (
+            f"plan line {number} is not compact: {line[:120]!r}")
+        # re-serialised from its own decoded content, in the row's own key order:
+        # the contract names the separators and nothing about key order, so a row
+        # is graded on its spacing rather than on the order it lists its fields in
+        decoded = json.loads(line)
+        assert line == json.dumps(decoded, separators=(",", ":")), (
+            f"plan line {number} is not the compact serialisation the contract "
+            f"names: {line[:120]!r}")
 
 
 def test_summary_math_consistency(primary_outputs):
@@ -1572,6 +1589,10 @@ def test_a_helper_beside_the_resolver_is_scanned_too(tmp_path: Path):
     passed both scans while the resolver itself looked clean.
     """
     helper = WORKFLOW_PATH.parent / "_scan_probe.py"
+    # whatever was there is put back afterwards rather than deleted: the name is
+    # the verifier's own invention and a submission that happened to ship a
+    # helper under it would otherwise lose the file for every later test
+    displaced = helper.read_bytes() if helper.is_file() else None
     helper.write_text("import packaging.version\n\n\ndef pick(a):\n    return eval(a)\n",
                       encoding="utf-8")
     try:
@@ -1584,7 +1605,10 @@ def test_a_helper_beside_the_resolver_is_scanned_too(tmp_path: Path):
                 offended = True
         assert offended, "a sibling module carrying both offences was not seen"
     finally:
-        helper.unlink()
+        if displaced is None:
+            helper.unlink()
+        else:
+            helper.write_bytes(displaced)
 
 
 def test_the_dynamic_execution_ban_catches_an_alias():
