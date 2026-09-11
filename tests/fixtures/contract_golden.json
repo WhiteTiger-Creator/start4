@@ -132,7 +132,7 @@
     }
   },
   "install_plan": {
-    "container": "one compact JSON object per line, json.dumps(..., separators=(',', ':'))",
+    "container": "one compact JSON object per line, json.dumps(..., separators=(',', ':')), every line terminated by a newline including the last, so the file ends with one and carries no blank line",
     "item_sort": "channel ascending, then install order within the channel",
     "output_path": "install_plan.jsonl",
     "required_fields": [

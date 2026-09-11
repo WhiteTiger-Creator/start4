@@ -71,7 +71,11 @@ def coerce_flag(value: object) -> bool:
         return value
     if isinstance(value, str):
         return value.strip().lower() in {"true", "1", "yes"}
-    return bool(value)
+    # Not bool(value): the spec says a flag that is neither a boolean nor one of
+    # those strings is FALSE, so a numeric 1 reads false rather than truthy. The
+    # truthiness fallback silently turned such a row into an excluded candidate
+    # and, with no other version available, an unsatisfiable conflict.
+    return False
 
 
 def parse_version(text: object) -> tuple[int, int, int, int, int, int]:
@@ -117,7 +121,11 @@ def parse_constraint(text: object) -> list[tuple[str, tuple]]:
     """Return a list of (op, version_key) clauses ANDed together. '*'/'' -> []
     (any). '~=' expands to a governance compatible-release band."""
     raw = str(text).strip()
-    if raw in {"", "*", "any"}:
+    # exactly the two tokens report_spec's any_tokens lists. "any" was a third,
+    # which the contract calls a bare version (an exact ==) -- and which this
+    # file's own specificity ranker already scored that way, so the two paths
+    # disagreed about the same string.
+    if raw in {"", "*"}:
         return []
     clauses: list[tuple[str, tuple]] = []
     for piece in raw.split(","):
@@ -730,7 +738,10 @@ def run(input_path: str, output_dir: str) -> None:
             dep_edges = sorted({d["package"] for d in res["deps"]})
             cap = resolve_policy(pkg, policy_data)["alt_report_cap"]
             alts = [v for v in res.get("candidates", []) if v != res["version"]]
-            alts = sorted(set(alts), key=lambda v: parse_version(v))[:cap]
+            # (key, string): parse_version is not injective -- 1.2 and 1.2.0, or
+            # 1.0.0+3 and 1.0.0+build3, share a key -- and a stable sort over a
+            # set then left those two in hash order, which differs between runs.
+            alts = sorted(set(alts), key=lambda v: (parse_version(v), v))[:cap]
             entry = {
                 "package": pkg,
                 "channel": channel,
@@ -845,10 +856,13 @@ def run(input_path: str, output_dir: str) -> None:
     # A run leaves exactly the three contracted artifacts, so anything an earlier
     # run left behind is cleared rather than presented as part of this one.
     for stale in sorted(out.iterdir()):
-        if stale.is_symlink() or stale.is_file():
-            stale.unlink()
-        elif stale.is_dir():
+        if not stale.is_symlink() and stale.is_dir():
             shutil.rmtree(stale, ignore_errors=True)
+        else:
+            # unlink rather than is_file(): a fifo, a socket or a device node
+            # left in the directory is false for is_file() and survived the
+            # sweep, so the run published four entries where it owed three.
+            stale.unlink()
     (out / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     (out / "resolution.json").write_text(json.dumps(resolution, indent=2) + "\n", encoding="utf-8")
     with (out / "install_plan.jsonl").open("w", encoding="utf-8") as fh:

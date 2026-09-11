@@ -13,6 +13,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -193,6 +194,28 @@ _SETPRIV = _setpriv_prefix(["setpriv", "--reuid=65534", "--regid=65534", "--clea
 _CANDIDATE_ENV = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": "/candidate-work", "LANG": "C.UTF-8"}
 
 
+_STAGE_DIR = None
+
+
+def _verifier_stage() -> Path:
+    """A directory the candidate can read and execute from but never write into.
+
+    The probe below used to be written into the run directory it executes in,
+    which is mode 0777 and is where every earlier graded run worked. Python puts
+    a script's own directory first on sys.path, so a submission that left an
+    os.py or a re.py there would have shadowed the probe's imports on the next
+    run and decided what the probe printed -- and what the probe prints is what
+    this suite reads the privilege boundary off. Root owns this directory at
+    0755, and the probe is additionally run with -I so neither its own directory
+    nor any environment path reaches sys.path at all.
+    """
+    global _STAGE_DIR
+    if _STAGE_DIR is None:
+        _STAGE_DIR = Path(tempfile.mkdtemp(prefix="verifier_stage_"))
+        os.chmod(_STAGE_DIR, 0o755)
+    return _STAGE_DIR
+
+
 def _candidate_dir() -> Path:
     d = _CWORK / f"run-{next(_run_ctr)}"
     d.mkdir(parents=True, exist_ok=True)
@@ -247,6 +270,22 @@ def _stage_input(src: Path, dst: Path) -> None:
         os.close(handle)
     dst.write_bytes(payload)
     os.chmod(dst, 0o644)
+
+
+def _sealed_index() -> dict:
+    """The recovered index, checked against the seal before anything reads it.
+
+    /app/data/registry_index.json is written by the submission, and several
+    probes pick their target package out of it -- which live versions a package
+    has, which package has two of them. That derivation is only honest while the
+    file is the one the recovery was supposed to produce, so the digest is
+    asserted here rather than left to a different test in the same run.
+    """
+    index = _load_json(REGISTRY_PATH)
+    assert _digest(index) == FIXTURE["recovered_index_digest"], (
+        "the recovered index does not match the sealed one, so nothing derived "
+        "from it below would mean anything")
+    return index
 
 
 def _run_pipeline(script_path: Path = WORKFLOW_PATH, input_path: Path = DEFAULT_INPUT):
@@ -647,6 +686,97 @@ def test_install_plan_jsonl_compact(primary_outputs):
             f"names: {line[:120]!r}")
 
 
+def test_the_resolver_declares_no_option_beyond_the_two_it_documents():
+    """instruction.md: it carries --input and --output-dir and declares no other.
+
+    The fixed-location rule was graded only in the direction that an ordinary run
+    reads the fixed paths. A resolver that also offered --registry-path and
+    --policy-path, defaulting to those same paths, passed every run this suite
+    made while handing the operational inputs to whoever passes a flag -- the
+    exploit the panel built and this suite accepted. An argument parser that
+    declares the two documented options refuses an undeclared one for us.
+    """
+    work = _candidate_dir()
+    out_dir = work / "output"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    os.chmod(out_dir, 0o777)
+    staged = work / "requests.json"
+    _stage_input(DEFAULT_INPUT, staged)
+    elsewhere = work / "elsewhere.json"
+    _write_json(elsewhere, {})
+    os.chmod(elsewhere, 0o644)
+    for option in ("--registry-path", "--policy-path", "--registry", "--policy",
+                   "--index", "--registry-index"):
+        result = subprocess.run(
+            _SETPRIV + [sys.executable, str(WORKFLOW_PATH),
+                        "--input", str(staged), "--output-dir", str(out_dir),
+                        option, str(elsewhere)],
+            check=False, capture_output=True, text=True, cwd=str(work),
+            env=dict(_CANDIDATE_ENV), timeout=int(RUNTIME_BUDGET_SEC),
+            preexec_fn=_apply_rlimits,
+        )
+        reap_candidate_uid()
+        assert result.returncode != 0, (
+            f"the resolver accepted {option}, so an input the contract fixes at an "
+            "absolute path can be pointed somewhere else after all")
+
+
+def test_a_file_beside_the_request_set_does_not_become_an_operational_input():
+    """instruction.md: the index and the policy come from their fixed paths.
+
+    Every staged run until now put the request file alone in a fresh directory,
+    so a resolver that preferred a registry_index.json or a resolution_policy.json
+    sitting beside --input -- an ordinary sidecar-configuration habit -- read the
+    fixed files here and passed. This run puts decoys beside the request set that
+    would visibly change the answer, and the answer has to stay where the fixed
+    paths put it.
+    """
+    index = _sealed_index()
+    target = next(
+        (pkg for pkg, rows in sorted(index.items())
+         if len([r for r in rows if not r.get("yanked")]) >= 2), None)
+    assert target, "the registry offers no package with two live versions"
+    rows = _requests([target], constraint=">=0.0.0")
+    _, _, honest, honest_plan = _run_requests(rows)
+
+    work = _candidate_dir()
+    out_dir = work / "output"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    os.chmod(out_dir, 0o777)
+    staged = work / "requests.json"
+    _write_json(staged, rows)
+    os.chmod(staged, 0o644)
+    # a decoy registry offering the target only its HIGHEST live version, so a
+    # resolver reading it takes a version the lowest-satisfying rule never would
+    live = sorted((r["version"] for r in index[target] if not r.get("yanked")),
+                  key=_version_key)
+    decoy_index = dict(index)
+    decoy_index[target] = [r for r in index[target] if r["version"] == live[-1]]
+    _write_json(work / "registry_index.json", decoy_index)
+    os.chmod(work / "registry_index.json", 0o644)
+    # and a decoy policy that would plan nothing at all
+    decoy_policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+    decoy_policy.setdefault("default", {})["plan_capacity_cap"] = 0
+    _write_json(work / "resolution_policy.json", decoy_policy)
+    os.chmod(work / "resolution_policy.json", 0o644)
+
+    _run_agent(
+        [sys.executable, str(WORKFLOW_PATH), "--input", str(staged),
+         "--output-dir", str(out_dir)],
+        cwd=work)
+    sidecar = _load_json(out_dir / "resolution.json")
+    sidecar_plan = _load_jsonl(out_dir / "install_plan.jsonl")
+    assert sidecar == honest, (
+        "a registry_index.json sitting beside the request set changed the answer, "
+        "so --input relocated an input the contract fixes")
+    assert len(sidecar_plan) == len(honest_plan), (
+        "a resolution_policy.json sitting beside the request set changed the plan, "
+        "so --input relocated the policy")
+    assert sidecar[target][0]["chosen_version"] == live[0], (
+        f"{target} resolved to {sidecar[target][0]['chosen_version']} rather than "
+        f"the lowest version the fixed registry offers, {live[0]}")
+
+
 def test_summary_math_consistency(primary_outputs):
     """The summary's own totals agree with the artifacts emitted beside it."""
     _, summary, resolution, plan = primary_outputs
@@ -783,7 +913,7 @@ def test_submitted_program_runs_unprivileged_and_cannot_reach_verifier_assets():
     that the boundary holds however it was set.
     """
     work = _candidate_dir()
-    probe = work / "probe.py"
+    probe = _verifier_stage() / "probe.py"
     probe.write_text(
         "import os\n"
         "print(os.getuid())\n"
@@ -802,7 +932,7 @@ def test_submitted_program_runs_unprivileged_and_cannot_reach_verifier_assets():
         encoding="utf-8")
     os.chmod(probe, 0o644)
     result = subprocess.run(
-        _SETPRIV + [sys.executable, str(probe)], capture_output=True, text=True,
+        _SETPRIV + [sys.executable, "-I", str(probe)], capture_output=True, text=True,
         cwd=str(work), env=dict(_CANDIDATE_ENV), check=False,
         timeout=int(RUNTIME_BUDGET_SEC),
         preexec_fn=_apply_rlimits,
@@ -1588,31 +1718,55 @@ def _dynamic_execution_offences(source: str) -> list[str]:
                     if isinstance(target, ast.Name):
                         aliases.add(target.id)
 
-    # A builtin fetched by a name the source does not spell. `getattr(builtins,
-    # "ev" + "al")` reaches exactly the same function as `eval`, and no Name or
-    # Attribute in the tree says so, which is the whole point of writing it that
-    # way. A getattr whose attribute argument is a plain string literal is an
-    # ordinary lookup and is read as one -- it is the ASSEMBLED name that is
-    # refused, plus a literal one that spells a banned builtin outright.
-    for node in ast.walk(tree):
-        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-                and node.func.id == "getattr" and len(node.args) >= 2):
-            continue
-        wanted = node.args[1]
-        if isinstance(wanted, ast.Constant) and isinstance(wanted.value, str):
-            if wanted.value in BANNED_DYNAMIC:
-                aliases.add(wanted.value)
-            continue
-        aliases.add("getattr")
-
     # Which names refer to the builtins module, so builtins.eval is caught while
     # re.compile -- an ordinary, entirely legitimate call -- is not.
-    builtin_mods = {"builtins"}
+    builtin_mods = {"builtins", "__builtins__"}
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
                 if alias.name == "builtins":
                     builtin_mods.add(alias.asname or alias.name)
+
+    # A builtin fetched by a name the source does not spell. `getattr(builtins,
+    # "ev" + "al")` reaches exactly the same function as `eval`, and no Name or
+    # Attribute in the tree says so, which is the whole point of writing it that
+    # way. What makes that an offence is the OBJECT, not the computed name: a
+    # resolver that projects its contracted field lists with `getattr(entry,
+    # field)` is doing ordinary attribute access on an ordinary object, executes
+    # nothing it generated and loads no module, and used to fail this scan on a
+    # rule no document states. Only an assembled name reaching into the builtins
+    # namespace is refused, plus a literal one that spells a banned builtin.
+    # reached without a Name node of their own, so they are recorded as they are
+    # found rather than through the alias set the final walk consults
+    direct: list[str] = []
+
+    def _is_builtins(expr) -> bool:
+        if isinstance(expr, ast.Name):
+            return expr.id in builtin_mods
+        if isinstance(expr, ast.Attribute):
+            return expr.attr in builtin_mods
+        # vars(builtins) / builtins.__dict__ reach the same mapping
+        if isinstance(expr, ast.Call) and isinstance(expr.func, ast.Name):
+            return expr.func.id == "vars" and bool(expr.args) and _is_builtins(expr.args[0])
+        return False
+
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "getattr" and len(node.args) >= 2):
+            wanted = node.args[1]
+            if isinstance(wanted, ast.Constant) and isinstance(wanted.value, str):
+                if wanted.value in BANNED_DYNAMIC:
+                    aliases.add(wanted.value)
+            elif _is_builtins(node.args[0]):
+                direct.append("getattr(builtins, ...)")
+        # the same fetch written as a subscript of the builtins mapping
+        elif isinstance(node, ast.Subscript) and _is_builtins(node.value):
+            key = node.slice
+            if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                if key.value in BANNED_DYNAMIC:
+                    aliases.add(key.value)
+            else:
+                direct.append("builtins[...]")
 
     # Names that are bound to something OTHER than the builtin of the same name:
     # `from re import compile` makes a bare `compile(...)` a regex compile, and a
@@ -1643,7 +1797,7 @@ def _dynamic_execution_offences(source: str) -> list[str]:
                         shadowed.add(target.id)
     shadowed -= aliases      # an alias bound TO a banned builtin is still an offence
 
-    offences = []
+    offences = list(direct)
     for node in ast.walk(tree):
         if (isinstance(node, ast.Attribute) and node.attr in BANNED_DYNAMIC
                 and isinstance(node.value, ast.Name) and node.value.id in builtin_mods):
@@ -2228,7 +2382,7 @@ def test_the_default_selection_takes_the_lowest_satisfying_version():
     A package offering several satisfying versions resolves to the lowest of them,
     which the "highest satisfying version" reading gets exactly backwards.
     """
-    index = _load_json(REGISTRY_PATH)
+    index = _sealed_index()
     target = next(
         (pkg for pkg, rows in sorted(index.items())
          if len([r for r in rows if not r.get("yanked")]) >= 2), None)
@@ -2613,3 +2767,29 @@ def test_policy_package_names_are_canonicalised_before_they_are_matched():
     entry = resolution["hot-fix"][0]
     assert entry["used_yanked"] is True and entry["chosen_version"] == "1.0.0", (
         "the exemption was not matched against the canonical package name", entry)
+
+
+def test_the_sources_are_still_intact_after_every_run(primary_outputs):
+    """The same bytes, checked again once every graded run has happened.
+
+    test_recovery_sources_are_intact runs near the top of this file, and pytest
+    takes tests in file order, so on its own it only established that the
+    sources were intact BEFORE the resolver was ever invoked. A run that
+    reformatted the snapshot, the journal or the contract in place -- or that
+    rewrote the frozen original once the early hash check was behind it -- left
+    that check standing. This one sits at the end and reads the same seals.
+    """
+    raw = FIXTURE["input_bytes_sha256"]
+    assert hashlib.sha256(SNAPSHOT_PATH.read_bytes()).hexdigest() == \
+        raw["registry_snapshot_pre_migration.json"], (
+            "the pre-migration snapshot changed during the graded runs")
+    assert hashlib.sha256(JOURNAL_PATH.read_bytes()).hexdigest() == \
+        raw["registry_replay_journal.json"], (
+            "the replay journal changed during the graded runs")
+    assert hashlib.sha256(SPEC_PATH.read_bytes()).hexdigest() == raw["report_spec.json"], (
+        "the output contract changed during the graded runs")
+    assert SPEC_PATH.read_bytes() == GOLDEN_CONTRACT_PATH.read_bytes(), (
+        "the shipped contract no longer matches the sealed copy byte for byte")
+    assert hashlib.sha256(ORIGINAL_WORKFLOW_PATH.read_bytes()).hexdigest() == \
+        FIXTURE["broken_pipeline_sha256"], (
+            "the frozen original changed during the graded runs")
