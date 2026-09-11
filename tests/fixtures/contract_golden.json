@@ -127,7 +127,7 @@
       "type": "string"
     },
     "yanked": {
-      "input_coercion": "the registry declares this a boolean and the operational data carries only booleans, so no coercion arises in practice; a value that is not a boolean is read as true only where it is the string 'true', '1' or 'yes' ignoring case and surrounding space, and as its own truthiness otherwise",
+      "input_coercion": "the registry declares this a boolean and the operational data carries only booleans, so no coercion arises in practice; a value that is not a boolean is read as true only where it is the string 'true', '1' or 'yes' ignoring case and surrounding space, and as false for everything else -- the string 'no' is false rather than truthy, which is #REG-7101's reading and the one that governs",
       "type": "boolean"
     }
   },
@@ -239,12 +239,14 @@
       "resolution_policy": "/app/data/resolution_policy.json"
     },
     "path": "/app/workflow/resolver.py",
+    "module_names_are_written_out": "every module a run brings in is named outright in an import statement. A name assembled or chosen at run time and handed to a loader -- __import__, importlib.import_module, load_module, exec_module -- is not a module named outright, and is refused wherever it appears under /app, whatever module it would have fetched",
     "prohibited_imports": [
       "packaging",
       "pip",
       "setuptools",
       "semantic_version",
       "pkg_resources"
-    ]
+    ],
+    "prohibited_imports_scope": "these bans, and the one on dynamically generated and executed code, cover every .py file the submission ships anywhere under /app rather than the entry point alone: a rule stopping at resolver.py would be satisfied by moving the import one file sideways"
   }
 }

@@ -944,6 +944,73 @@ def test_the_pin_table_is_resolved_from_the_policy():
     assert entry["provenance"] == "pin-override"
 
 
+def test_a_pin_written_under_the_global_scope_binds_on_every_channel():
+    """#REG-7110 lets a pin sit under the '*' scope as well as a named channel.
+
+    The shipped policy pins only under `stable`, and every other pin probe here
+    plants one under a named channel too, so a resolver whose lookup is simply
+    `pins[canon(channel)]` -- with no global fallback -- matched every case in
+    this suite while ignoring half of a documented rule. The pin below is written
+    only under '*', and the request asks on canary.
+    """
+    registry = _load_json(REGISTRY_PATH)
+    package = "netcore"
+    versions = sorted((e["version"] for e in registry.get(package, [])), key=_version_key)
+    assert len(versions) > 1, f"{package} carries one version, so a pin proves nothing"
+    pinned = versions[0]
+    rows = [{"request_id": "req-1", "package": package, "source": "probe",
+             "channel": "canary", "constraint": ">=0.0.0", "note": ""}]
+    base, shifted = _policy_probe(
+        rows, lambda pol: pol.setdefault("pins", {}).setdefault(
+            "*", {}).__setitem__(package, pinned))
+    assert base[2][package][0]["chosen_version"] != pinned, (
+        "the probe pinned the version the resolver already chose, so it proves nothing")
+    entry = shifted[2][package][0]
+    assert entry["chosen_version"] == pinned, (
+        "a pin under the '*' scope did not bind on canary, so the global scope "
+        "of the pin table is not being read")
+    assert entry["provenance"] == "pin-override"
+
+
+def test_the_channel_count_follows_the_requests_rather_than_the_policy():
+    """#REG-7155 counts the channels the surviving REQUESTS name.
+
+    Both graded sets happen to use both configured channels, so a summary
+    reporting len(policy["channel_priorities"]) -- always two -- matched every
+    sealed comparison. This request set names one channel, and the policy still
+    configures two.
+    """
+    policy = _load_json(POLICY_PATH)
+    assert len(policy["channel_priorities"]) > 1, (
+        "the policy configures one channel, so the two readings coincide")
+    _, summary, _, _ = _run_requests(_requests(SMALL_ROOTS, channel="stable"))
+    assert summary["channel_count"] == 1, (
+        "the summary reports "
+        f"{summary['channel_count']} channels for a request set naming one, so "
+        "it is counting what the policy configures rather than what the "
+        "requests name")
+
+
+def test_request_ids_are_counted_distinctly():
+    """#REG-7155 counts DISTINCT request ids, collapsed under the note coercion.
+
+    Every graded row and every probe here carries its own id, so a summary
+    reporting the raw row count was never told apart from one counting distinct
+    ids. These two rows share an id -- spelled with different internal spacing,
+    which #REG-7101's collapse makes the same id.
+    """
+    rows = [{"request_id": "req  1", "package": "pkg-03-0000", "source": "probe",
+             "channel": "stable", "constraint": ">=1.0.0", "note": ""},
+            {"request_id": "req 1", "package": "pkg-03-0001", "source": "probe",
+             "channel": "stable", "constraint": ">=1.0.0", "note": ""}]
+    _, summary, _, _ = _run_requests(rows)
+    assert summary["raw_request_count"] == 2, summary
+    assert summary["unique_request_ids"] == 1, (
+        "the summary reports "
+        f"{summary['unique_request_ids']} distinct request ids for two rows "
+        "carrying the same id under the collapse, so it is counting rows")
+
+
 def test_the_selection_override_list_is_resolved_from_the_policy():
     """#REG-7126: a package on the list takes the HIGHEST admissible version.
 
@@ -1521,6 +1588,23 @@ def _dynamic_execution_offences(source: str) -> list[str]:
                     if isinstance(target, ast.Name):
                         aliases.add(target.id)
 
+    # A builtin fetched by a name the source does not spell. `getattr(builtins,
+    # "ev" + "al")` reaches exactly the same function as `eval`, and no Name or
+    # Attribute in the tree says so, which is the whole point of writing it that
+    # way. A getattr whose attribute argument is a plain string literal is an
+    # ordinary lookup and is read as one -- it is the ASSEMBLED name that is
+    # refused, plus a literal one that spells a banned builtin outright.
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "getattr" and len(node.args) >= 2):
+            continue
+        wanted = node.args[1]
+        if isinstance(wanted, ast.Constant) and isinstance(wanted.value, str):
+            if wanted.value in BANNED_DYNAMIC:
+                aliases.add(wanted.value)
+            continue
+        aliases.add("getattr")
+
     # Which names refer to the builtins module, so builtins.eval is caught while
     # re.compile -- an ordinary, entirely legitimate call -- is not.
     builtin_mods = {"builtins"}
@@ -1904,10 +1988,42 @@ def test_stale_files_are_cleared_from_the_output_directory(tmp_path: Path):
     (leftover_dir / "inner.json").write_text("{}\n", encoding="utf-8")
     os.chmod(leftover_dir / "inner.json", 0o666)
     os.chmod(leftover_dir, 0o777)
+    # A link is content too, and every probe here planted only ordinary files
+    # and directories. The usual cleanup -- unlink what is_file(), rmtree what
+    # is_dir() -- steps over a dangling link, since neither is true of one, and
+    # leaves a fourth entry standing beside the three artifacts.
+    (out_dir / "dangling").symlink_to(out_dir / "nothing-here")
+    outside = work / "link-target"
+    outside.mkdir()
+    (outside / "keep.txt").write_text("not the run's to remove\n", encoding="utf-8")
+    os.chmod(outside, 0o777)
+    os.chmod(outside / "keep.txt", 0o666)
+    (out_dir / "live-link").symlink_to(outside / "keep.txt")
+    # The directory the run was GIVEN, not one of the same name. Clearing by
+    # rmtree-and-mkdir leaves the right three files at the right path and is
+    # still not what the contract asks: the run does not own the path, and a
+    # caller holding that directory open, or watching it, loses it.
+    #
+    # Held open across the run, because comparing (st_dev, st_ino) before and
+    # after does NOT detect this: a directory removed and immediately recreated
+    # in the same parent gets the inode number that was just freed, so the pair
+    # compares equal and the check passes a directory that really was replaced.
+    # An open descriptor keeps the ORIGINAL directory alive, and an unlinked
+    # directory reports a link count of nought however the path is reused.
+    held = os.open(str(out_dir), os.O_RDONLY | os.O_DIRECTORY)
 
-    _run_agent([sys.executable, str(WORKFLOW_PATH), "--output-dir", str(out_dir)], cwd=work)
-    names = sorted(q.name for q in out_dir.iterdir())
-    assert names == ["install_plan.jsonl", "resolution.json", "summary.json"], names
+    try:
+        _run_agent([sys.executable, str(WORKFLOW_PATH), "--output-dir", str(out_dir)], cwd=work)
+        names = sorted(q.name for q in out_dir.iterdir())
+        assert names == ["install_plan.jsonl", "resolution.json", "summary.json"], names
+        assert os.fstat(held).st_nlink > 0, (
+            "the output directory was removed and recreated rather than cleared: "
+            "the directory the run was handed is gone, and the three artifacts "
+            "sit in a new one that happens to carry the same name")
+    finally:
+        os.close(held)
+    assert (outside / "keep.txt").exists() and outside.is_dir(), (
+        "the run cleared through a link rather than removing the link itself")
     assert _load_json(out_dir / "summary.json") != {}, "the stale summary was left in place"
     # Three names are not the deliverable. No --input is passed, so this run reads
     # the same request set the graded one does and owes the same three artifacts;
