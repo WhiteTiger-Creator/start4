@@ -130,7 +130,11 @@ def parse_constraint(text: object) -> list[tuple[str, tuple]]:
     clauses: list[tuple[str, tuple]] = []
     for piece in raw.split(","):
         piece = piece.strip()
-        if not piece or piece in {"*", "any"}:
+        # "any" belongs here no more than it did above: report_spec names
+        # exactly "" and "*" as the ANY tokens, and #REG-7106 makes every
+        # other bare version an exact ==. Skipping it here left the clause
+        # list empty, so satisfies() accepted every candidate.
+        if not piece or piece == "*":
             continue
         match = _OP_RE.match(piece)
         if not match:

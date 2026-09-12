@@ -28,7 +28,7 @@ An on-call engineer filed a routine observation. The variance sat inside toleran
 The exceptions queue owner logged a routine observation. A query about a prior-period entry was answered from the published schedule. Referred to the dated decisions and closed.
 A weekly review spot-checked a routine observation. A typo in a reference record was corrected before the run started. The reviewer signed it off the same day.
 
-### Review entry 1005 — channel-canary lane lane
+### Review entry 1005 — channel-canary lane
 The controls team noted a routine observation. A query about a prior-period entry was answered from the published schedule. No dissent was recorded.
 A reviewer on shift filed a routine observation. A batch retried once after a transient timeout and completed on the second pass. The observation stood without amendment.
 
@@ -55,7 +55,7 @@ The duty analyst spot-checked a routine observation. Late inputs arrived from on
 A reviewer on shift recorded a routine observation. A query about a prior-period entry was answered from the published schedule. Closed against the standing runbook.
 The audit lead reviewed a routine observation. The overnight window ran long behind an unrelated platform patch. Nothing was escalated.
 
-### Review entry 1011 — channel-canary lane lane
+### Review entry 1011 — channel-canary lane
 The reconciliation desk raised and closed a routine observation. A batch retried once after a transient timeout and completed on the second pass. The thread was archived after review.
 The audit lead carried forward a routine observation. Nightly reconciliation matched exactly and the file was released without comment. Closed with no parameter change.
 
@@ -81,7 +81,7 @@ The platform team raised and closed a routine observation. A typo in a reference
 A shift handover reviewed a routine observation. A batch retried once after a transient timeout and completed on the second pass.
 The audit lead recorded a routine observation. Dashboard tiles lagged the refresh; traced to cache staleness rather than the engine.
 
-### Review entry 1017 — channel-canary lane lane
+### Review entry 1017 — channel-canary lane
 The operations desk logged a routine observation. A typo in a reference record was corrected before the run started.
 A stand-up note opened a query on a routine observation. The variance sat inside tolerance and no adjustment was raised.
 
@@ -107,7 +107,7 @@ A reviewer on shift recorded a routine observation. One record appeared twice in
 The controls team filed a routine observation. A duplicate order was cancelled at source and never reached the run.
 A stand-up note signed off a routine observation. The count sat a little above the running mean, entirely from estimated inputs.
 
-### Review entry 1023 — channel-canary lane lane
+### Review entry 1023 — channel-canary lane
 The duty analyst reviewed a routine observation. The downstream vendor confirmed receipt inside the agreed window.
 A weekly review reviewed a routine observation. Late inputs arrived from one feed and were loaded before the cut.
 
@@ -133,7 +133,7 @@ The reconciliation desk recorded a routine observation. A typo in a reference re
 > **Governance decision (2026-03-09 - #REG-7009)** Priya: registry-index recovery interim: the replay journal outranks the pre-migration snapshot wherever the two carry the same release, but a replayed release is appended to the END of its package's release list rather than taking the snapshot record's position, and a retraction applies only to versions the snapshot never held *(Revised — see the 2026-06 governance review.)*
 A weekly review reviewed a routine observation. Two accounts showed a same-day transfer the export had not yet picked up. Left open overnight, then closed.
 
-### Review entry 1029 — channel-canary lane lane
+### Review entry 1029 — channel-canary lane
 The reconciliation desk signed off a routine observation. Two accounts showed a same-day transfer the export had not yet picked up. Referred to the dated decisions and closed.
 A weekly review opened a query on a routine observation. One record appeared twice in the export after a mid-cycle correction. Carried to the archive unchanged.
 
@@ -157,7 +157,7 @@ A reviewer on shift signed off a routine observation. One record appeared twice 
 An on-call engineer signed off a routine observation. A duplicate order was cancelled at source and never reached the run. No action was carried forward.
 The platform team filed a routine observation. The overnight window ran long behind an unrelated platform patch. Nothing was escalated.
 
-### Review entry 1035 — channel-canary lane lane
+### Review entry 1035 — channel-canary lane
 A shift handover carried forward a routine observation. A batch retried once after a transient timeout and completed on the second pass. The observation stood without amendment.
 An on-call engineer recorded a routine observation. Storage on the staging host was extended after the export outgrew its allocation. The item was closed at the same meeting.
 
@@ -181,7 +181,7 @@ The audit lead opened a query on a routine observation. Storage on the staging h
 The audit lead noted a routine observation. The count sat a little above the running mean, entirely from estimated inputs.
 A reviewer on shift logged a routine observation. Two accounts showed a same-day transfer the export had not yet picked up.
 
-### Review entry 1041 — channel-canary lane lane
+### Review entry 1041 — channel-canary lane
 A reviewer on shift reviewed a routine observation. Storage on the staging host was extended after the export outgrew its allocation.
 A reviewer on shift noted a routine observation. A query about a prior-period entry was answered from the published schedule.
 
@@ -205,7 +205,7 @@ A stand-up note noted a routine observation. A typo in a reference record was co
 The duty analyst signed off a routine observation. The variance sat inside tolerance and no adjustment was raised.
 The duty analyst raised and closed a routine observation. Two accounts showed a same-day transfer the export had not yet picked up.
 
-### Review entry 1047 — channel-canary lane lane
+### Review entry 1047 — channel-canary lane
 A stand-up note opened a query on a routine observation. A query about a prior-period entry was answered from the published schedule.
 The controls team carried forward a routine observation. Dashboard tiles lagged the refresh; traced to cache staleness rather than the engine.
 
@@ -230,7 +230,7 @@ A shift handover recorded a routine observation. Storage on the staging host was
 The controls team recorded a routine observation. The count sat a little above the running mean, entirely from estimated inputs. The desk confirmed no downstream impact.
 The platform team opened a query on a routine observation. The variance sat inside tolerance and no adjustment was raised. Closed against the standing runbook.
 
-### Review entry 1053 — channel-canary lane lane
+### Review entry 1053 — channel-canary lane
 A reviewer on shift noted a routine observation. One record appeared twice in the export after a mid-cycle correction. The reviewer signed it off the same day.
 The exceptions queue owner carried forward a routine observation. Nightly reconciliation matched exactly and the file was released without comment. A second reviewer concurred.
 
@@ -256,7 +256,7 @@ A reviewer on shift filed a routine observation. An operator asked whether a cre
 A stand-up note filed a routine observation. Nightly reconciliation matched exactly and the file was released without comment. The item was closed at the same meeting.
 The duty analyst spot-checked a routine observation. Two accounts showed a same-day transfer the export had not yet picked up. Filed for the record.
 
-### Review entry 1059 — channel-canary lane lane
+### Review entry 1059 — channel-canary lane
 A reviewer on shift opened a query on a routine observation. Late inputs arrived from one feed and were loaded before the cut. Recorded without further action.
 The operations desk reviewed a routine observation. Storage on the staging host was extended after the export outgrew its allocation. Logged for trend purposes only.
 
@@ -281,7 +281,7 @@ A shift handover logged a routine observation. The count sat a little above the 
 > **Governance decision (2026-05-04 - #REG-7104)** Lena: version precedence (deviates from semver): order by (major, minor, patch), then pre-release maturity rank where dev < alpha < beta < rc < ga and ga denotes a final release (no pre-release suffix), then the pre-release number, then BUILD METADATA (the integer in a +N suffix) as the FINAL tiebreaker — build metadata IS precedence-significant here, unlike semver which ignores it entirely, so 1.0.0+build7 outranks 1.0.0+build3 outranks 1.0.0. This supersedes #REG-7004
 The operations desk filed a routine observation. Nightly reconciliation matched exactly and the file was released without comment.
 
-### Review entry 1065 — channel-canary lane lane
+### Review entry 1065 — channel-canary lane
 A shift handover recorded a routine observation. Storage on the staging host was extended after the export outgrew its allocation.
 The exceptions queue owner carried forward a routine observation. The downstream vendor confirmed receipt inside the agreed window.
 
@@ -306,7 +306,7 @@ The operations desk signed off a routine observation. Two accounts showed a same
 An on-call engineer carried forward a routine observation. Late inputs arrived from one feed and were loaded before the cut.
 A reviewer on shift raised and closed a routine observation. The downstream vendor confirmed receipt inside the agreed window.
 
-### Review entry 1071 — channel-canary lane lane
+### Review entry 1071 — channel-canary lane
 The duty analyst raised and closed a routine observation. The downstream vendor confirmed receipt inside the agreed window.
 The audit lead noted a routine observation. Storage on the staging host was extended after the export outgrew its allocation.
 
@@ -332,7 +332,7 @@ The reconciliation desk raised and closed a routine observation. The variance sa
 > **Governance decision (2026-05-06 - #REG-7110)** Priya: pin override: a version named in the policy's pins for the request's channel (or under the '*' global scope) is chosen ABSOLUTELY — regardless of constraints, yanked state or pre-release state — with status 'pinned'; a pin whose version is absent from the registry is a 'conflict' (pin-missing). Pins take precedence over #REG-7108, #REG-7120 and #REG-7122
 The platform team carried forward a routine observation. A duplicate order was cancelled at source and never reached the run. No follow-up was requested.
 
-### Review entry 1077 — channel-canary lane lane
+### Review entry 1077 — channel-canary lane
 The operations desk spot-checked a routine observation. The count sat a little above the running mean, entirely from estimated inputs. Nothing was escalated.
 A reviewer on shift noted a routine observation. A batch retried once after a transient timeout and completed on the second pass. Closed against the standing runbook.
 
@@ -357,7 +357,7 @@ A shift handover raised and closed a routine observation. A question raised on t
 An on-call engineer logged a routine observation. Storage on the staging host was extended after the export outgrew its allocation. Raised, discussed briefly, and dropped.
 The duty analyst noted a routine observation. A typo in a reference record was corrected before the run started. Logged for trend purposes only.
 
-### Review entry 1083 — channel-canary lane lane
+### Review entry 1083 — channel-canary lane
 The platform team filed a routine observation. The overnight window ran long behind an unrelated platform patch. Left open overnight, then closed.
 > **Governance decision (2026-05-08 - #REG-7122)** Priya: pre-release admission: a pre-release candidate (maturity rank below ga) is admitted only when BOTH the channel's channel_priorities.allow_prerelease is true AND the candidate's maturity rank is >= the resolved prerelease_rank_floor for that package; otherwise it is excluded from candidates (a pin naming a pre-release still wins per #REG-7110). This supersedes #REG-7022
 The controls team reviewed a routine observation. A batch retried once after a transient timeout and completed on the second pass. The matter was not pursued.
@@ -383,7 +383,7 @@ A reviewer on shift logged a routine observation. The variance sat inside tolera
 The platform team spot-checked a routine observation. Storage on the staging host was extended after the export outgrew its allocation.
 The reconciliation desk reviewed a routine observation. Nightly reconciliation matched exactly and the file was released without comment.
 
-### Review entry 1089 — channel-canary lane lane
+### Review entry 1089 — channel-canary lane
 The operations desk filed a routine observation. A batch retried once after a transient timeout and completed on the second pass.
 The platform team logged a routine observation. A question raised on the floor was withdrawn once the entry was reread.
 
@@ -408,7 +408,7 @@ The platform team raised and closed a routine observation. Storage on the stagin
 A reviewer on shift spot-checked a routine observation. One record appeared twice in the export after a mid-cycle correction.
 The platform team carried forward a routine observation. Late inputs arrived from one feed and were loaded before the cut.
 
-### Review entry 1095 — channel-canary lane lane
+### Review entry 1095 — channel-canary lane
 The controls team logged a routine observation. An operator asked whether a credit had posted; it had, in the preceding period.
 A stand-up note raised and closed a routine observation. An operator asked whether a credit had posted; it had, in the preceding period.
 
@@ -435,7 +435,7 @@ The reconciliation desk reviewed a routine observation. The count sat a little a
 > **Governance decision (2026-05-16 - #REG-7148)** Marek: cycle handling: dependency cycles are NON-FATAL — when no remaining package is installable, install the lexicographically smallest remaining package, FLAG it cyclic, and continue; cyclic packages are reported in the summary but still installed
 The operations desk spot-checked a routine observation. The variance sat inside tolerance and no adjustment was raised. The reviewer signed it off the same day.
 
-### Review entry 1101 — channel-canary lane lane
+### Review entry 1101 — channel-canary lane
 An on-call engineer signed off a routine observation. The variance sat inside tolerance and no adjustment was raised. Carried to the archive unchanged.
 A weekly review raised and closed a routine observation. Dashboard tiles lagged the refresh; traced to cache staleness rather than the engine. No change to the approved parameters resulted.
 
@@ -460,7 +460,7 @@ The platform team filed a routine observation. Two accounts showed a same-day tr
 The operations desk raised and closed a routine observation. A batch retried once after a transient timeout and completed on the second pass.
 A reviewer on shift logged a routine observation. Nightly reconciliation matched exactly and the file was released without comment. Closed with no parameter change.
 
-### Review entry 1107 — channel-canary lane lane
+### Review entry 1107 — channel-canary lane
 The exceptions queue owner reviewed a routine observation. Storage on the staging host was extended after the export outgrew its allocation. The observation stood without amendment.
 > **Governance decision (2026-05-10 - #REG-7154)** Yusuf: summary aggregation (final, revising #REG-7048): max_reselect_count, max_dep_count and max_alternatives_count are maxima over the FINAL capped install_plan rows only (0 when the plan is empty); total_reselects and total_alternatives_considered sum over EVERY resolution entry; total_conflict_weight = conflict_count times the resolved default conflict_weight
 > **Governance decision (2026-05-10 - #REG-7155)** Yusuf: summary request and channel counters, final. `raw_request_count` is the number of rows the selected request file holds, counted before any coercion. `unique_request_ids` is the number of DISTINCT request_id values across those same raw rows, the id collapsed under the #REG-7101 note coercion. `canonical_request_count` is the number of requests left AFTER the #REG-7102/#REG-7142 duplicate keep, so a request set holding no duplicate (channel, package, source) reports it equal to raw_request_count. `channel_count` is the number of DISTINCT canonical channels those surviving requests name, not the number of channels the policy configures.
@@ -486,7 +486,7 @@ A reviewer on shift filed a routine observation. The count sat a little above th
 The operations desk signed off a routine observation. A typo in a reference record was corrected before the run started.
 The operations desk raised and closed a routine observation. A question raised on the floor was withdrawn once the entry was reread.
 
-### Review entry 1113 — channel-canary lane lane
+### Review entry 1113 — channel-canary lane
 The controls team signed off a routine observation. Late inputs arrived from one feed and were loaded before the cut.
 The reconciliation desk filed a routine observation. A question raised on the floor was withdrawn once the entry was reread.
 
@@ -512,7 +512,7 @@ A weekly review spot-checked a routine observation. One record appeared twice in
 > **Governance decision (2026-05-18 - #REG-7150)** Priya: policy baseline (read from /app/data/resolution_policy.json at that fixed absolute path; --input never relocates it). Any field the policy file omits keeps its baseline: reselect_cap = 2; prerelease_rank_floor = 3; plan_capacity_cap = 3; conflict_weight = 5; alt_report_cap = 4
 The audit lead signed off a routine observation. Late inputs arrived from one feed and were loaded before the cut.
 
-### Review entry 1119 — channel-canary lane lane
+### Review entry 1119 — channel-canary lane
 An on-call engineer reviewed a routine observation. One record appeared twice in the export after a mid-cycle correction.
 The reconciliation desk opened a query on a routine observation. A question raised on the floor was withdrawn once the entry was reread.
 

@@ -1238,6 +1238,16 @@ def test_the_reselect_cap_is_resolved_from_the_policy(primary_outputs):
         assert entry["status"] == "resolved", (
             f"corelib is {entry['status']} with the cap lifted: {entry}")
         assert entry["chosen_version"] is not None, entry
+        # The labels the selection itself produces, not merely the absence of the
+        # frozen one. Asserting only `not after` let a submission satisfy this
+        # probe by writing the provenance away -- stamping any string it liked
+        # over the entry, with a reason that matched nothing the contract names.
+        assert entry["provenance"] in {"default-selection", "override-selection"}, (
+            f"corelib carries provenance {entry['provenance']!r} with the cap "
+            "lifted, which is not a label the selection produces")
+        assert entry["reason"].endswith(entry["provenance"]), (
+            f"corelib reports reason {entry['reason']!r} against provenance "
+            f"{entry['provenance']!r}, which the two never pair as")
         # #REG-7104 takes the LOWEST version the constraints admit, so every
         # alternative the entry still reports has to sort above the one it took.
         for other in entry["alternatives_considered"]:
@@ -1281,6 +1291,8 @@ def test_the_prerelease_rank_floor_is_resolved_from_the_policy():
     # at all, so the chosen version is checked: the floor shuts out every
     # pre-release and leaves the GA releases, of which the lowest satisfying one wins.
     assert after["status"] == "resolved", after
+    assert after["provenance"] in {"default-selection", "override-selection"}, after
+    assert after["reason"].endswith(after["provenance"]), after
     assert not _is_prerelease_text(after["chosen_version"]), (
         f"edgekit took {after['chosen_version']} under a floor no label clears, "
         "and that version still carries a pre-release label")
@@ -1617,6 +1629,21 @@ _LOADER_NAMES = frozenset({"__import__", "import_module", "load_module", "exec_m
 _LOADER_HOLDERS = frozenset({"__builtins__", "builtins", "importlib"})
 
 
+def _names_in(node) -> set[str]:
+    """Every bare name and attribute tail appearing under `node`."""
+    seen: set[str] = set()
+    if node is None:
+        return seen
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name):
+            seen.add(child.id)
+        elif isinstance(child, ast.Attribute):
+            seen.add(child.attr)
+        elif isinstance(child, ast.Constant) and isinstance(child.value, str):
+            seen.add(child.value)
+    return seen
+
+
 def _runtime_loading_offences(source: str) -> set[str]:
     """Anything in `source` that could fetch a module by name while it runs.
 
@@ -1628,11 +1655,40 @@ def _runtime_loading_offences(source: str) -> set[str]:
     library call and `print("importlib")` is prose, and failing either graded a
     name rather than a behaviour.
     """
+    tree = ast.parse(source)
+
+    # A bare name is a loader only if nothing in this file binds it to something
+    # else. `def import_module(value): return value` defines an ordinary local
+    # function that loads nothing, and flagging the file for its NAME graded the
+    # spelling rather than the operation the contract forbids. A name bound here
+    # by a def, a class, an assignment or an import that is not importlib's is
+    # this file's own; every other occurrence still counts.
+    shadowed: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if node.name in _LOADER_NAMES:
+                shadowed.add(node.name)
+        elif isinstance(node, ast.ImportFrom):
+            root = (node.module or "").split(".")[0]
+            for alias in node.names:
+                bound = alias.asname or alias.name
+                if bound in _LOADER_NAMES and root not in {"importlib", "imp", "builtins"}:
+                    shadowed.add(bound)
+        elif isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                # a rebinding FROM a loader is still an offence, caught below by
+                # the loader name on the value side; only a plain value shadows.
+                if (isinstance(target, ast.Name) and target.id in _LOADER_NAMES
+                        and not _names_in(node.value) & _LOADER_NAMES):
+                    shadowed.add(target.id)
+
     offences: set[str] = set()
-    for node in ast.walk(ast.parse(source)):
+    for node in ast.walk(tree):
         # a loader name wherever it is spelled: called, rebound or passed along
         if isinstance(node, ast.Name) and node.id in _LOADER_NAMES:
-            offences.add(node.id)
+            if node.id not in shadowed:
+                offences.add(node.id)
         elif isinstance(node, ast.Attribute) and node.attr in _LOADER_NAMES:
             offences.add(node.attr)
         elif isinstance(node, ast.Call):
